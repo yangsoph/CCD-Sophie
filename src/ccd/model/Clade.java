@@ -35,9 +35,20 @@ public class Clade {
     private final BitSet cladeAsBitSet;
 
     /**
+     * BitSet representation of this clade, with only the taxa bits, excluding the sampled ancestor flag bit.
+     * The mapping of bits to taxa is implicit here, explicit in a global context.
+     */
+    private final BitSet cladeAsBitSetTaxaOnly;
+
+    /**
      * Number of taxa in this clade.
      */
     private final int size;
+
+    /**
+     * Total number of taxa in the tree this clade belongs to.
+     */
+    private final int numTaxaInTree;
 
     /**
      * The number of times this clade occurs in the processed set of trees.
@@ -136,7 +147,9 @@ public class Clade {
     public Clade(BitSet cladeInBits, AbstractCCD abstractCCD) {
         this.ccd = abstractCCD;
         this.cladeAsBitSet = cladeInBits;
-        this.size = cladeInBits.cardinality();
+        this.numTaxaInTree = abstractCCD.leafArraySize;
+        this.cladeAsBitSetTaxaOnly = cladeInBits.getSubset(0, numTaxaInTree);
+        this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bit
         this.parentClades = new ArrayList<Clade>(4);
         this.partitions = new ArrayList<CladePartition>(5);
         this.childClades = new ArrayList<Clade>(8);
@@ -444,6 +457,15 @@ public class Clade {
      */
     public boolean isCherry() {
         return (this.size == 2);
+    }
+
+    /**
+     * @return whether this clade is a sampled ancestor
+     */
+    public boolean isSampledAncestor() {
+        // The bit in index = #taxa position in the bitSet of this clade, i.e. the last bit
+        // 0 is SA, 1 is not SA
+        return (!cladeAsBitSet.get(numTaxaInTree));
     }
 
     /**

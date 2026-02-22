@@ -2,6 +2,8 @@ CCD.iml
 build/
 release/
 
+*.iml
+
 # OS X ignores
 .DS_Store
 
