@@ -235,8 +235,8 @@ public abstract class AbstractCCD implements ITreeDistribution {
     protected void initializeRootClade(int numLeaves) {
         this.leafArraySize = numLeaves;
 
-        BitSet rootBitSet = BitSet.newBitSet(leafArraySize);
-        rootBitSet.set(0, numLeaves);
+        BitSet rootBitSet = BitSet.newBitSet(leafArraySize + 1);
+        rootBitSet.set(0, numLeaves + 1); // root cannot be a sampled ancestor, so index numLeaves is set to 1
 
         this.rootClade = new Clade(rootBitSet, this);
         cladeMapping.put(rootClade.getCladeInBits(), rootClade);
@@ -265,13 +265,16 @@ public abstract class AbstractCCD implements ITreeDistribution {
 
     /* Recursive helper method */
     private Clade cladifyVertex(Node vertex) {
-        BitSet cladeInBits = BitSet.newBitSet(leafArraySize);
+        BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1); // plus 1 bit for sampled ancestor flag
         Clade firstChildClade = null;
         Clade secondChildClade = null;
 
         if (vertex.isLeaf()) {
             int index = vertex.getNr();
             cladeInBits.set(index);
+            if (vertex.getLength() != 0) { // if vertex is not a sampled ancestor, set the last bit to 1
+                cladeInBits.set(leafArraySize);
+            }
         } else {
             firstChildClade = cladifyVertex(vertex.getChildren().get(0));
             secondChildClade = cladifyVertex(vertex.getChildren().get(1));
@@ -341,13 +344,16 @@ public abstract class AbstractCCD implements ITreeDistribution {
     /* Recursive helper method */
     private Clade reduceCladeCount(Node vertex) {
         // 1. build BitSet to retrieve clade and call recursion
-        BitSet cladeInBits = BitSet.newBitSet(leafArraySize);
+        BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1);
         Clade firstChildClade = null;
         Clade secondChildClade = null;
 
         if (vertex.isLeaf()) {
             int index = vertex.getNr();
             cladeInBits.set(index);
+            if (vertex.getLength() != 0) { // if vertex is not a sampled ancestor, set the last bit to 1
+                cladeInBits.set(leafArraySize);
+            }
         } else {
             firstChildClade = reduceCladeCount(vertex.getChildren().get(0));
             secondChildClade = reduceCladeCount(vertex.getChildren().get(1));
@@ -1230,8 +1236,11 @@ public abstract class AbstractCCD implements ITreeDistribution {
     private BitSet computeCladeToNodeMapping(Node vertex, Map<Clade, Node> map) {
         BitSet bits;
         if (vertex.isLeaf()) {
-            bits = BitSet.newBitSet(getSizeOfLeavesArray());
+            bits = BitSet.newBitSet(getSizeOfLeavesArray() + 1);
             bits.set(vertex.getNr());
+            if (vertex.getLength() != 0) { // if vertex is not a sampled ancestor, set the last bit to 1
+                bits.set(leafArraySize);
+            }
         } else {
             bits = computeCladeToNodeMapping(vertex.getLeft(), map);
             BitSet otherBits = computeCladeToNodeMapping(vertex.getRight(), map);
@@ -1246,7 +1255,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
 
         return bits;
     }
-
 
     /* -- PROBABILITY - PROBABILITY -- */
     protected void setToUseLogProbabilities() {
@@ -1284,15 +1292,25 @@ public abstract class AbstractCCD implements ITreeDistribution {
 
     /* Recursive helper method */
     private Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog) {
-        BitSet cladeInBits = BitSet.newBitSet(leafArraySize);
+        BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1);
 
         if (vertex.isLeaf()) {
+            // set bitSet
             int index = vertex.getNr();
             cladeInBits.set(index);
+            if (vertex.getLength() != 0) { // if vertex is not a sampled ancestor, set the last bit to 1
+                cladeInBits.set(leafArraySize);
+            }
 
-            // leaf has probability 1, so no changes to runningProbability
-
+            Clade currentClade = cladeMapping.get(cladeInBits);
+            // probability of the leaf
+            if (computeLog) {
+                runningProbability[0] += currentClade.getLogProbability();
+            } else {
+                runningProbability[0] *= currentClade.getProbability();
+            }
             return cladeMapping.get(cladeInBits);
+
         } else {
             Clade firstChildClade = computeProbabilityOfVertex(vertex.getChildren().get(0), runningProbability, computeLog);
             Clade secondChildClade = computeProbabilityOfVertex(vertex.getChildren().get(1), runningProbability, computeLog);
@@ -1315,7 +1333,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 if (partition != null) {
                     if (computeLog) {
                         runningProbability[0] += partition.getLogCCP();
-
                     } else {
                         runningProbability[0] *= partition.getCCP();
                     }

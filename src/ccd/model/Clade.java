@@ -733,7 +733,7 @@ public class Clade {
                     BitSet bitsMax = smallCladeMax.getCladeInBits();
                     BitSet bitsCurrent = smallCladeCurrent.getCladeInBits();
 
-                    if (bitsMax.equals(bitsCurrent)) {
+                    if (maxSubtreeCCPPartition.equivalentToPartition(partition)) {
                         System.err.println(maxSubtreeCCPPartition);
                         System.err.println(partition);
                         throw new AssertionError("Tie breaking failed - duplicate partitions detected!");
@@ -902,6 +902,16 @@ public class Clade {
     }
 
     /**
+     * Returns the log probability of this clade appearing in a tree
+     * of a distribution ({@link ITreeDistribution}).
+     *
+     * @return log probability of this clade appearing in a tree
+     */
+    public double getLogProbability() {
+        return Math.log(probability);
+    }
+
+    /**
      * Set the probability of this clade appearing in a tree of its distribution
      * ({@link ITreeDistribution}).
      *
@@ -932,7 +942,11 @@ public class Clade {
      * @return whether this clade contains the given filter
      */
     public boolean contains(BitSet mask) {
-        return BitSetUtil.contains(this.cladeAsBitSet, mask);
+        BitSet maskWithoutSA = (BitSet) mask.clone();
+        maskWithoutSA.clear(numTaxaInTree);
+        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
+        cladeWithoutSA.clear(numTaxaInTree);
+        return BitSetUtil.contains(cladeWithoutSA, maskWithoutSA);
     }
 
     /**
@@ -942,7 +956,11 @@ public class Clade {
      * @return whether this clade is contained in the given BitSet
      */
     public boolean contained(BitSet mask) {
-        return BitSetUtil.contains(mask, this.cladeAsBitSet);
+        BitSet maskWithoutSA = (BitSet) mask.clone();
+        maskWithoutSA.clear(numTaxaInTree);
+        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
+        cladeWithoutSA.clear(numTaxaInTree);
+        return BitSetUtil.contains(maskWithoutSA, cladeWithoutSA);
     }
 
     /**
@@ -962,7 +980,11 @@ public class Clade {
      * @return whether this clade intersects the given filter
      */
     public boolean intersects(BitSet mask) {
-        return this.cladeAsBitSet.intersects(mask);
+        BitSet maskWithoutSA = (BitSet) mask.clone();
+        maskWithoutSA.clear(numTaxaInTree);
+        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
+        cladeWithoutSA.clear(numTaxaInTree);
+        return cladeWithoutSA.intersects(maskWithoutSA);
     }
 
     /**
@@ -975,6 +997,33 @@ public class Clade {
         return this.cladeAsBitSet.equals(mask);
     }
 
+    public boolean equals(Clade anotherClade) {
+        return this.cladeAsBitSet.equals(anotherClade.cladeAsBitSet);
+    }
+
+    /**
+     * Returns whether this clade (as BitSet) contains the same taxa as the given BitSet.
+     *
+     * @param mask to be tested if contains the same taxa as this clade
+     * @return whether this clade contains the same taxa as the given filter
+     */
+    public boolean hasSameTaxa(BitSet mask) {
+        BitSet maskWithoutSA = (BitSet) mask.clone();
+        maskWithoutSA.clear(numTaxaInTree);
+        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
+        cladeWithoutSA.clear(numTaxaInTree);
+        return cladeWithoutSA.equals(maskWithoutSA);
+    }
+
+    /**
+     * Returns whether this clade contains the same taxa as the given clade.
+     *
+     * @param anotherClade to be tested if contains the same taxa as this clade
+     * @return whether this clade contains the same taxa as the given clade
+     */
+    public boolean hasSameTaxa(Clade anotherClade) {
+        return this.cladeAsBitSetTaxaOnly.equals(anotherClade.cladeAsBitSetTaxaOnly);
+    }
 
     /* -- BASE CLADE FOR FILTERED CCDs -- */
 
