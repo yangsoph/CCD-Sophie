@@ -631,11 +631,9 @@ public class Clade {
 
                     runningEntropy -= probability * (logprobability - entropyFirstChild - entropySecondChild);
                 }
-
                 this.entropy = runningEntropy;
             }
         }
-
         return entropy;
     }
 

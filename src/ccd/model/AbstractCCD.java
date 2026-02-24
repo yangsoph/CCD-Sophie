@@ -726,7 +726,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 testro += partition.getProbability() * logS;
             }
         }
-
         return -testro;
     }
 

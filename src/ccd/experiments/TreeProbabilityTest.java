@@ -4,11 +4,13 @@ import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.model.CCD0;
 import ccd.model.CCD1;
+import ccd.model.Clade;
 import ccd.model.WrappedBeastTree;
 import ccd.algorithms.LoadOrStoreTrees;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class TreeProbabilityTest {
@@ -19,24 +21,24 @@ public class TreeProbabilityTest {
         WrappedBeastTree mapTreeCCD1 = new WrappedBeastTree(ccd1.getMAPTree());
         System.out.println("CCD1 MAP tree log prob = " + ccd1.getMaxLogTreeProbability());
         System.out.println("entropy = " + ccd1.getEntropy());
+        System.out.println("root prob = " + ccd1.getRootClade().getProbability());
         System.out.println("num of clades = " + ccd1.getNumberOfClades());
-        System.out.println("num of splits  = " + ccd1.getNumberOfCladePartitions());
-        System.out.println("num of topologies  = " + ccd1.getRootClade().getNumberOfTopologies());
+        // System.out.println("num of splits  = " + ccd1.getNumberOfCladePartitions());
+        int[] cladeBin = new int[81];
+        int sampledAncestorCount = 0;
+        for (Clade clade : ccd1.getClades()) {
+            cladeBin[clade.size()] += 1;
+            if (clade.isSampledAncestor()) {
+                sampledAncestorCount++;
+            }
+        }
+        int totalCount = 0;
+        for (int i = 0; i < cladeBin.length; i++) {
+            totalCount += cladeBin[i];
+            System.out.println(i + " taxa: " + cladeBin[i]);
+        }
+        System.out.println(totalCount);
+        System.out.println("sampledAncestorCount " + sampledAncestorCount);
 
-        // CCD0 ccd0 = new CCD0(treeSet, false);
-        // WrappedBeastTree mapTreeCCD0 = new WrappedBeastTree(ccd0.getMAPTree());
-        // System.out.println("CCD0 MAP tree log prob = " + ccd0.getMaxLogTreeProbability());
-        // System.out.println("entropy = " + ccd0.getEntropy());
-
-        // String dataPath = "/Users/zyan598/Desktop/local_test/thinned3_yule-n50-1.trees";
-        // TreeAnnotator.MemoryFriendlyTreeSet treeSet = new TreeAnnotator().new MemoryFriendlyTreeSet(dataPath, 0);
-        // File inputTreeFile = new File(dataPath);
-        // List<Tree> treeList = LoadOrStoreTrees.loadTrees(inputTreeFile, 0);
-        // CCD1 ccd1 = new CCD1(treeSet, false);
-        // WrappedBeastTree mapTree = new WrappedBeastTree(ccd1.getMAPTree());
-        // for (int j = 0; j < treeList.size(); j++) { // loop through input tree set
-        //     Tree testTree = treeList.get(j);
-        //     System.out.println(ccd1.getProbabilityOfTree(testTree));
-        // }
     }
 }
