@@ -484,7 +484,8 @@ public class Clade {
 
     @Override
     public String toString() {
-        return "Clade [taxa = " + cladeAsBitSet + ", numOccurrences = " + numOccurrences
+        return "Clade [taxa = " + cladeAsBitSetTaxaOnly + ", numOccurrences = " + numOccurrences
+                + ", is sampled ancestor = " + this.isSampledAncestor()
                 // + ", ccd = " + ccd
                 + ", num partitions = " + partitions.size()
                 + ", parameter = " + ((parameter < 0) ? getCladeCredibility() : parameter) + "]";
@@ -1000,7 +1001,7 @@ public class Clade {
     }
 
     /**
-     * Returns whether this clade (as BitSet) contains the same taxa as the given BitSet.
+     * Returns whether this clade contains the same taxa as the given BitSet.
      *
      * @param mask to be tested if contains the same taxa as this clade
      * @return whether this clade contains the same taxa as the given filter

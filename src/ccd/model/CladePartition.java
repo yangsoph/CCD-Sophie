@@ -276,7 +276,7 @@ public class CladePartition {
     public double getProbability() {
         return parentClade.getProbability() * this.getCCP();
     }
-
+    
     /**
      * Returns the conditional clade probability of this partition; locally (not
      * recursively), so only the probability of this partition of child clades

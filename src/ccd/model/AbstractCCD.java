@@ -543,9 +543,26 @@ public abstract class AbstractCCD implements ITreeDistribution {
         return rootClade;
     }
 
+    /**
+     * Number of clades including leaves and the root.
+     * A sampled ancestor leaf is counted as a different leaf from a normal leaf.
+     * TODO might want to not double count sampled ancestor leaves
+     *
+     * @return number of clades
+     */
     @Override
     public int getNumberOfClades() {
         return cladeMapping.size();
+    }
+
+    public int getNumberOfSampledAncestorTaxa() {
+        int count = 0;
+        for (Clade clade : this.getClades()) {
+            if (clade.isSampledAncestor()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     @Override
@@ -1302,6 +1319,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
             }
 
             Clade currentClade = cladeMapping.get(cladeInBits);
+
             // probability of the leaf
             if (computeLog) {
                 runningProbability[0] += currentClade.getLogProbability();
