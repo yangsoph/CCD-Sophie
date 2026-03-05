@@ -302,6 +302,16 @@ public abstract class AbstractCCD implements ITreeDistribution {
         return currentClade;
     }
 
+    private void combineClades(BitSet parent, BitSet firstChild, BitSet secondChild) {
+        parent.or(firstChild);
+        parent.or(secondChild);
+    }
+
+    private void combineCladesExtandClade(BitSet parent, BitSet firstChild, BitSet secondChild) {
+        parent.or(firstChild);
+        parent.or(secondChild);
+    }
+
     /**
      * Adds and returns a new clade to this CCD based on the given BitSet.
      * Assumes that the clade does not exist yet; otherwise future behaviour is undefined.

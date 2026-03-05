@@ -1,5 +1,7 @@
 package ccd.model.bitsets;
 
+import ccd.model.Clade;
+
 /**
  * Stripped down version of {@link java.util.BitSet} adapted for speedup;
  * safety checks on sizes removed and special child classes for small bitsets used.
@@ -159,7 +161,7 @@ public class BitSet implements Cloneable {
      * Returns the subset of the bitSet with specified from (inclusive) and to (exclusive) indices.
      *
      * @param fromBitIndex the starting (inclusive) bit index
-     * @param toBitIndex the ending (exclusive) bit index
+     * @param toBitIndex   the ending (exclusive) bit index
      * @return the subset of the bitSet given specified from (inclusive) and to (exclusive) indices
      * @throws IndexOutOfBoundsException if the starting index is negative or the ending index < the starting index
      */
@@ -524,7 +526,6 @@ public class BitSet implements Cloneable {
 
         return true;
     }
-
 
     /**
      * Returns the index of the last bit that is set to {@code true}

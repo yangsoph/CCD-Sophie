@@ -32,18 +32,18 @@ public class Clade {
      * BitSet representation of this clade. The mapping of bits to taxa is
      * implicit here, explicit in a global context.
      */
-    private final BitSet cladeAsBitSet;
+    private BitSet cladeAsBitSet;
 
     /**
      * BitSet representation of this clade, with only the taxa bits, excluding the sampled ancestor flag bit.
      * The mapping of bits to taxa is implicit here, explicit in a global context.
      */
-    private final BitSet cladeAsBitSetTaxaOnly;
+    private BitSet cladeAsBitSetTaxaOnly;
 
     /**
      * Number of taxa in this clade.
      */
-    private final int size;
+    private int size;
 
     /**
      * Total number of taxa in the tree this clade belongs to.
@@ -149,6 +149,30 @@ public class Clade {
         this.cladeAsBitSet = cladeInBits;
         this.numTaxaInTree = abstractCCD.leafArraySize;
         this.cladeAsBitSetTaxaOnly = cladeInBits.getSubset(0, numTaxaInTree);
+        this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bit
+        this.parentClades = new ArrayList<Clade>(4);
+        this.partitions = new ArrayList<CladePartition>(5);
+        this.childClades = new ArrayList<Clade>(8);
+
+        if (size == 1) {
+            this.maxSubtreeLogCCP = 0;
+            this.maxSubtreeSumCladeCredibility = 1;
+            this.probability = 1;
+            this.sumCladeCredibilities = 1;
+        }
+    }
+
+    /**
+     * Construct an empty Clade given a CCD. This clade is represented by an empty BitSet
+     * with placeholders for #taxa = #leaves the trees this CCD is based on.
+     *
+     * @param abstractCCD CCD this clade is part of
+     */
+    public Clade(AbstractCCD abstractCCD) {
+        this.ccd = abstractCCD;
+        this.numTaxaInTree = abstractCCD.leafArraySize;
+        this.cladeAsBitSet = BitSet.newBitSet(numTaxaInTree + 1);
+        this.cladeAsBitSetTaxaOnly = cladeAsBitSet.getSubset(0, numTaxaInTree);
         this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bit
         this.parentClades = new ArrayList<Clade>(4);
         this.partitions = new ArrayList<CladePartition>(5);
@@ -299,6 +323,76 @@ public class Clade {
         }
     }
 
+    /* -- BITSET OPERATIONS -- */
+
+    /**
+     * Adds a taxon to this clade, i.e., sets the bit at the specified index to {@code true}.
+     *
+     * @param index index of the taxon to be set
+     */
+    public void addTaxon(int index) {
+        this.cladeAsBitSet.set(index);
+        this.cladeAsBitSetTaxaOnly.set(index);
+    }
+
+    /**
+     * Adds a range of taxa to this clade,
+     * i.e., sets the bits from the specified {@code fromIndex} (inclusive)
+     * to the specified {@code toIndex} (exclusive) to {@code true}.
+     *
+     * @param fromIndex index of the first taxon to be set
+     * @param toIndex   index after the last taxon to be set
+     */
+    public void addTaxa(int fromIndex, int toIndex) {
+        this.cladeAsBitSet.set(fromIndex, toIndex);
+        this.cladeAsBitSetTaxaOnly.set(fromIndex, toIndex);
+    }
+
+    /**
+     * Removes a taxon from this clade, i.e., sets the bit at the specified index to {@code false}.
+     *
+     * @param index index of the taxon to be cleared
+     */
+    public void removeTaxon(int index) {
+        this.cladeAsBitSet.clear(index);
+        this.cladeAsBitSetTaxaOnly.clear(index);
+    }
+
+    /**
+     * Marks the clade as sampled ancestor.
+     */
+    public void markAsSampledAncestor() {
+        // Note: we use 0 to represent sampled ancestor, and 1 to represent non sampled ancestor
+        this.cladeAsBitSet.clear(this.numTaxaInTree);
+    }
+
+    /**
+     * Marks the clade as non sampled ancestor.
+     */
+    public void unmarkAsSampledAncestor() {
+        // Note: we use 0 to represent sampled ancestor, and 1 to represent non sampled ancestor
+        this.cladeAsBitSet.set(this.numTaxaInTree);
+    }
+
+    /**
+     * Combines this clade with another clade.
+     * Sampled ancestors are only marked at leaf level, the combined clade is never a sampled ancestor.
+     */
+    public void combineClades(Clade anotherClade) {
+        this.cladeAsBitSet.or(anotherClade.cladeAsBitSet);
+    }
+
+    /**
+     * Combines this clade with another clade.
+     * If one of the clades is a sampled ancestor leaf, the combined clade is marked as sampled ancestor.
+     */
+    public void combineCladesWithExtandedClade(Clade anotherClade) {
+        this.cladeAsBitSet.or(anotherClade.cladeAsBitSet);
+        if ((this.isSampledAncestor() && this.isLeaf()) ||
+                (anotherClade.isSampledAncestor() && anotherClade.isLeaf())) {
+            this.markAsSampledAncestor();
+        }
+    }
 
     /* -- STATE MANAGEMENT -- */
 
@@ -464,7 +558,7 @@ public class Clade {
      */
     public boolean isSampledAncestor() {
         // The bit in index = #taxa position in the bitSet of this clade, i.e. the last bit
-        // 0 is SA, 1 is not SA
+        // Note: we use 0 to represent sampled ancestor, and 1 to represent non sampled ancestor
         return (!cladeAsBitSet.get(numTaxaInTree));
     }
 
@@ -604,7 +698,6 @@ public class Clade {
     public double getCladeParameter() {
         return this.parameter;
     }
-
 
     /* -- GETTERS RECURSIVE VALUES -- */
 
