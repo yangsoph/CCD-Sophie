@@ -172,7 +172,7 @@ public class Clade {
         this.ccd = abstractCCD;
         this.numTaxaInTree = abstractCCD.leafArraySize;
         this.cladeAsBitSet = BitSet.newBitSet(numTaxaInTree + 1);
-        this.cladeAsBitSetTaxaOnly = cladeAsBitSet.getSubset(0, numTaxaInTree);
+        this.cladeAsBitSetTaxaOnly = BitSet.newBitSet(numTaxaInTree);
         this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bit
         this.parentClades = new ArrayList<Clade>(4);
         this.partitions = new ArrayList<CladePartition>(5);
@@ -369,7 +369,7 @@ public class Clade {
     /**
      * Marks the clade as non sampled ancestor.
      */
-    public void unmarkAsSampledAncestor() {
+    public void markAsNonSampledAncestor() {
         // Note: we use 0 to represent sampled ancestor, and 1 to represent non sampled ancestor
         this.cladeAsBitSet.set(this.numTaxaInTree);
     }
@@ -378,20 +378,36 @@ public class Clade {
      * Combines this clade with another clade.
      * Sampled ancestors are only marked at leaf level, the combined clade is never a sampled ancestor.
      */
-    public void combineClades(Clade anotherClade) {
-        this.cladeAsBitSet.or(anotherClade.cladeAsBitSet);
+    public void combineClades(Clade firstChildClade, Clade secondChildClade) {
+        // System.out.println("combine " + this);
+        // System.out.println("and " + anotherClade);
+        this.cladeAsBitSet.or(firstChildClade.cladeAsBitSet);
+        this.cladeAsBitSet.or(secondChildClade.cladeAsBitSet);
+        this.cladeAsBitSetTaxaOnly = this.cladeAsBitSet.getSubset(0, numTaxaInTree);
+        // System.out.println("get " + this);
+        // System.out.println("cladeAsBitSet" + this.cladeAsBitSet);
+        // System.out.println("cladeAsBitSetTaxaOnly" + this.cladeAsBitSetTaxaOnly);
     }
 
     /**
      * Combines this clade with another clade.
      * If one of the clades is a sampled ancestor leaf, the combined clade is marked as sampled ancestor.
      */
-    public void combineCladesWithExtandedClade(Clade anotherClade) {
-        this.cladeAsBitSet.or(anotherClade.cladeAsBitSet);
-        if ((this.isSampledAncestor() && this.isLeaf()) ||
-                (anotherClade.isSampledAncestor() && anotherClade.isLeaf())) {
+    public void combineCladesWithExtendedClade(Clade firstChildClade, Clade secondChildClade) {
+        this.cladeAsBitSet.or(firstChildClade.cladeAsBitSet);
+        this.cladeAsBitSet.or(secondChildClade.cladeAsBitSet);
+        // If one of the child is a sampled ancestor leaf, parent is marked as sampled ancestor
+        if ((firstChildClade.isSampledAncestor() && firstChildClade.isLeaf()) ||
+                (secondChildClade.isSampledAncestor() && secondChildClade.isLeaf())) {
             this.markAsSampledAncestor();
         }
+        // If both children are sampled ancestor, and they are not leaf, parent should not be a sampled ancestor
+        // i.e. sampled ancestorness does not pass to the grandparent generation
+        else if ((firstChildClade.isSampledAncestor() && !firstChildClade.isLeaf()) &&
+                (secondChildClade.isSampledAncestor() && !secondChildClade.isLeaf())) {
+            this.markAsNonSampledAncestor();
+        }
+        this.cladeAsBitSetTaxaOnly = this.cladeAsBitSet.getSubset(0, numTaxaInTree);
     }
 
     /* -- STATE MANAGEMENT -- */
@@ -455,7 +471,6 @@ public class Clade {
      */
     protected void increaseOccurrenceCount(double height) {
         this.meanHeight = (meanHeight * numOccurrences + height) / (numOccurrences + 1);
-
         increaseOccurrenceCount();
     }
 
@@ -537,6 +552,10 @@ public class Clade {
      */
     public BitSet getCladeInBits() {
         return cladeAsBitSet;
+    }
+
+    public BitSet getCladeInBitsTaxaOnly() {
+        return cladeAsBitSetTaxaOnly;
     }
 
     /**

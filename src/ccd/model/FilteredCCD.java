@@ -2,6 +2,7 @@ package ccd.model;
 
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;
+import ccd.algorithms.sampledAncestor.SampledAncestorModel;
 import ccd.model.bitsets.BitSet;
 
 import java.io.IOException;
@@ -362,7 +363,6 @@ public class FilteredCCD extends AbstractCCD {
         }
     }
 
-
     @Override
     public FilteredCCD copy() {
         throw new UnsupportedOperationException("Copying a filtered CCD is by design not supported.");
@@ -377,6 +377,7 @@ public class FilteredCCD extends AbstractCCD {
     }
 
     @Override
+    // public void addTree(Tree tree, SampledAncestorModel model) {
     public void addTree(Tree tree) {
         throw new UnsupportedOperationException("Adding trees not supported for filtered CCDs.");
     }

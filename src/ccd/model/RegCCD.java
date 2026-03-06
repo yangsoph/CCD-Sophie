@@ -5,6 +5,8 @@ import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.regularisation.CCDExpansion;
 import ccd.algorithms.regularisation.CCD1Regularisor;
 import ccd.algorithms.regularisation.CCDRegularisationStrategy;
+import ccd.algorithms.sampledAncestor.SampledAncestorModel;
+
 import java.util.List;
 
 public class RegCCD extends CCD1 {
@@ -12,7 +14,7 @@ public class RegCCD extends CCD1 {
     /**
      * Constructor for an empty CCD. Trees can then be processed one by one.
      *
-     * @param numLeaves      number of leaves of the trees that this CCD will be based on
+     * @param numLeaves number of leaves of the trees that this CCD will be based on
      */
     public RegCCD(int numLeaves) {
         super(numLeaves, true);
@@ -27,6 +29,7 @@ public class RegCCD extends CCD1 {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
+    // public RegCCD(List<Tree> trees, double burnin, SampledAncestorModel model) {
     public RegCCD(List<Tree> trees, double burnin) {
         super(trees, burnin);
         postConstruction();
@@ -36,10 +39,11 @@ public class RegCCD extends CCD1 {
      * Constructor for a {@link RegCCD} based on the given collection of trees
      * (not containing any burnin trees).
      *
-     * @param treeSet        an iterable set of trees, which contains no burnin trees,
-     *                       whose distribution is approximated by the resulting
-     *                       {@link RegCCD}; all of its trees are used
+     * @param treeSet an iterable set of trees, which contains no burnin trees,
+     *                whose distribution is approximated by the resulting
+     *                {@link RegCCD}; all of its trees are used
      */
+    // public RegCCD(TreeAnnotator.TreeSet treeSet, SampledAncestorModel model) {
     public RegCCD(TreeAnnotator.TreeSet treeSet) {
         super(treeSet, true);
         postConstruction();

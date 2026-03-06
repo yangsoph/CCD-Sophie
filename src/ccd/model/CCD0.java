@@ -2,6 +2,7 @@ package ccd.model;
 
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator.TreeSet;
+import ccd.algorithms.sampledAncestor.SampledAncestorModel;
 import ccd.model.bitsets.BitSet;
 
 import java.io.PrintStream;
@@ -111,6 +112,7 @@ public class CCD0 extends AbstractCCD {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
+    // public CCD0(List<Tree> trees, double burnin, SampledAncestorModel model) {
     public CCD0(List<Tree> trees, double burnin) {
         super(trees, burnin);
         initialize();
@@ -124,6 +126,7 @@ public class CCD0 extends AbstractCCD {
      *                whose distribution is approximated by the resulting
      *                {@link CCD0}; all of its trees are used
      */
+    // public CCD0(TreeSet treeSet, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet) {
         this(treeSet, false);
     }
@@ -137,6 +140,7 @@ public class CCD0 extends AbstractCCD {
      *                      {@link CCD0}
      * @param numTreesToUse the number of trees to use from the treeSet
      */
+    // public CCD0(TreeSet treeSet, int numTreesToUse, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, int numTreesToUse) {
         this(treeSet, numTreesToUse, false);
     }
@@ -150,6 +154,7 @@ public class CCD0 extends AbstractCCD {
      *                       {@link CCD0}; all of its trees are used
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
+    // public CCD0(TreeSet treeSet, boolean storeBaseTrees, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, boolean storeBaseTrees) {
         this(treeSet, treeSet.totalTrees - treeSet.burninCount, storeBaseTrees);
     }
@@ -164,6 +169,7 @@ public class CCD0 extends AbstractCCD {
      * @param numTreesToUse  the number of trees to use from the treeSet
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
+    // public CCD0(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees) {
         super(treeSet, numTreesToUse, storeBaseTrees);
         initialize();
@@ -184,6 +190,7 @@ public class CCD0 extends AbstractCCD {
      *                                    and CCD gets reinitialized repeatedly
      *                                    (mutually exclusive with monophyletic clades speedup)
      */
+    // public CCD0(TreeSet treeSet, boolean storeBaseTrees, boolean useMonophyleticCladeSpeedup, boolean updateOnline, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, boolean storeBaseTrees, boolean useMonophyleticCladeSpeedup, boolean updateOnline) {
         super(treeSet, storeBaseTrees);
         if (useMonophyleticCladeSpeedup) {
@@ -205,6 +212,7 @@ public class CCD0 extends AbstractCCD {
      *                           {@link CCD0}
      * @param maxExpansionFactor
      */
+    // public CCD0(TreeSet treeSet, boolean storeBaseTrees, int maxExpansionFactor, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, boolean storeBaseTrees, int maxExpansionFactor) {
         super(treeSet, storeBaseTrees);
         this.maxExpansionFactor = maxExpansionFactor;
@@ -439,7 +447,6 @@ public class CCD0 extends AbstractCCD {
         // System.err.println("Expanded in " + (end-start) + " ms");
     }
 
-
     /**
      * set up clade buckets so that
      * 1. each bucket contains clades of the same size
@@ -496,9 +503,9 @@ public class CCD0 extends AbstractCCD {
                         fromi[j++] = c;
                     }
                     int max = clade.getCladeInBits().lastSetBit();
-//	        		if (max < 0 || max >= toi.length) {
-//	        			max = clade.getCladeInBits().lastSetBit();
-//	        		}
+                    //	        		if (max < 0 || max >= toi.length) {
+                    //	        			max = clade.getCladeInBits().lastSetBit();
+                    //	        		}
                     toi[max] = c;
                 }
                 while (j < leafArraySize) {
@@ -730,7 +737,7 @@ public class CCD0 extends AbstractCCD {
     /**
      * Recursively computes, sets, and returns the log probabilities of all clade partitions based on the clade credibilities.
      * Method only needs to be called when a CCD0 was constructed manually,
-     * e.g. by the {@link  ccp.algorithms.CCDCombiner}.
+     * e.g. by the {@link  ccd.algorithms.CCDCombiner}.
      *
      * @param clade for which the clade partition probabilities are computed
      * @return the sum of this clade's partitions probabilities times its own credibility

@@ -127,6 +127,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
+    // public AbstractCCD(List<Tree> trees, double burnin, SampledAncestorModel model) {
     public AbstractCCD(List<Tree> trees, double burnin) {
         this(trees.get(0).getLeafNodeCount(), true);
 
@@ -143,6 +144,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
         }
 
         for (Tree tree : treesToUse) {
+            // cladifyTree(tree, model);
             cladifyTree(tree);
         }
     }
@@ -156,7 +158,9 @@ public abstract class AbstractCCD implements ITreeDistribution {
      *                       {@link AbstractCCD}; all of its trees are used
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
+    // public AbstractCCD(TreeSet treeSet, boolean storeBaseTrees, SampledAncestorModel model) {
     public AbstractCCD(TreeSet treeSet, boolean storeBaseTrees) {
+        // this(treeSet, treeSet.totalTrees - treeSet.burninCount, storeBaseTrees, model);
         this(treeSet, treeSet.totalTrees - treeSet.burninCount, storeBaseTrees);
     }
 
@@ -170,6 +174,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
      * @param numTreesToUse  the number of trees to use from the treeSet
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
+    // public AbstractCCD(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees, SampledAncestorModel model) {
     public AbstractCCD(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees) {
         this(storeBaseTrees);
         this.baseTreeSet = treeSet;
@@ -185,6 +190,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
 
             while ((tree != null) && (numBaseTrees < numTreesToUse)) {
                 this.numBaseTrees++;
+                // cladifyTree(tree, model);
                 cladifyTree(tree);
 
                 // report progress
@@ -247,69 +253,76 @@ public abstract class AbstractCCD implements ITreeDistribution {
      *
      * @param tree to be added and processed into the CCD graph
      */
+    // public void addTree(Tree tree, SampledAncestorModel model) {
     public void addTree(Tree tree) {
         this.numBaseTrees++;
+        // this.cladifyTree(tree, model);
         this.cladifyTree(tree);
         this.setCacheAsDirty();
     }
 
     /* Helper method; process one tree into this CCD */
+    // protected void cladifyTree(Tree tree, SampledAncestorModel model) {
     protected void cladifyTree(Tree tree) {
         if (storeBaseTrees) {
             this.baseTrees.add(tree);
         } else if (this.baseTrees.isEmpty()) {
             this.baseTrees.add(tree);
         }
+        // cladifyVertex(tree.getRoot(), model);
         cladifyVertex(tree.getRoot());
     }
 
     /* Recursive helper method */
     private Clade cladifyVertex(Node vertex) {
-        BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1); // plus 1 bit for sampled ancestor flag
+        Clade tempClade = new Clade(this);
+        // BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1); // plus 1 bit for sampled ancestor flag
         Clade firstChildClade = null;
         Clade secondChildClade = null;
 
         if (vertex.isLeaf()) {
             int index = vertex.getNr();
-            cladeInBits.set(index);
-            if (vertex.getLength() != 0) { // if vertex is not a sampled ancestor, set the last bit to 1
-                cladeInBits.set(leafArraySize);
+            tempClade.addTaxon(index);
+            // cladeInBits.set(index);
+            if (vertex.getLength() == 0) {
+                tempClade.markAsSampledAncestor();
+                // cladeInBits.set(leafArraySize);
+            } else {
+                tempClade.markAsNonSampledAncestor();
             }
         } else {
             firstChildClade = cladifyVertex(vertex.getChildren().get(0));
             secondChildClade = cladifyVertex(vertex.getChildren().get(1));
 
-            cladeInBits.or(firstChildClade.getCladeInBits());
-            cladeInBits.or(secondChildClade.getCladeInBits());
+            // if ((model == SampledAncestorModel.NotApplicable) || (model == SampledAncestorModel.ExtendedLeaf)) {
+            //     tempClade.combineClades(firstChildClade, secondChildClade)
+            // } else {
+            //     tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
+            // }
+            // tempClade.combineClades(firstChildClade, secondChildClade);
+            tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
+            // cladeInBits.or(firstChildClade.getCladeInBits());
+            // cladeInBits.or(secondChildClade.getCladeInBits());
         }
-
+        BitSet cladeInBits = tempClade.getCladeInBits();
         Clade currentClade = cladeMapping.get(cladeInBits);
         if (currentClade == null) {
             currentClade = addNewClade(cladeInBits);
         }
         currentClade.increaseOccurrenceCount(vertex.getHeight());
+        // System.out.println(currentClade.getCladeInBits());
+        // System.out.println(currentClade.getCladeInBitsTaxaOnly());
 
         if (!vertex.isLeaf()) {
-            CladePartition currentPartition = currentClade.getCladePartition(firstChildClade,
-                    secondChildClade);
+            CladePartition currentPartition = currentClade.getCladePartition(firstChildClade, secondChildClade);
             if (currentPartition == null) {
-                currentPartition = currentClade.createCladePartition(firstChildClade,
-                        secondChildClade);
+                currentPartition = currentClade.createCladePartition(firstChildClade, secondChildClade);
             }
             currentPartition.increaseOccurrenceCount(vertex.getHeight());
         }
-
+        // System.out.println("at the end of cladifyVertex, currentClade" + currentClade);
+        // System.out.println();
         return currentClade;
-    }
-
-    private void combineClades(BitSet parent, BitSet firstChild, BitSet secondChild) {
-        parent.or(firstChild);
-        parent.or(secondChild);
-    }
-
-    private void combineCladesExtandClade(BitSet parent, BitSet firstChild, BitSet secondChild) {
-        parent.or(firstChild);
-        parent.or(secondChild);
     }
 
     /**
@@ -927,6 +940,8 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 vertex.setHeight(clade.getMeanOccurredHeight());
             }
         } else {
+            System.out.println("getVertexBasedOnStrategy " + clade);
+            System.out.println(clade.getCladeInBits());
             CladePartition partition = getPartitionBasedOnStrategy(clade, samplingStrategy);
             if (partition == null) {
                 throw new AssertionError("Unsuccessful to find clade partition of clade: " + clade.getCladeInBits());

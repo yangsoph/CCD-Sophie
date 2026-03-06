@@ -56,6 +56,7 @@ public class CCD2 extends AbstractCCD {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
+    // public CCD2(List<Tree> trees, double burnin, SampledAncestorModel model) {
     public CCD2(List<Tree> trees, double burnin) {
         this(trees.get(0).getLeafNodeCount(), true);
 
@@ -72,6 +73,7 @@ public class CCD2 extends AbstractCCD {
         }
 
         for (Tree tree : treesToUse) {
+            // cladifyTree(tree, model);
             cladifyTree(tree);
         }
     }
@@ -84,7 +86,9 @@ public class CCD2 extends AbstractCCD {
      *                whose distribution is approximated by the resulting
      *                {@link CCD2}
      */
+    // public CCD2(TreeSet treeSet, SampledAncestorModel model) {
     public CCD2(TreeSet treeSet) {
+        // this(treeSet, false, model);
         this(treeSet, false);
     }
 
@@ -97,6 +101,7 @@ public class CCD2 extends AbstractCCD {
      *                       {@link CCD2}
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
+    // public CCD2(TreeSet treeSet, boolean storeBaseTrees, SampledAncestorModel model) {
     public CCD2(TreeSet treeSet, boolean storeBaseTrees) {
         super(storeBaseTrees);
 
@@ -115,6 +120,7 @@ public class CCD2 extends AbstractCCD {
 
             while (tree != null) {
                 this.numBaseTrees++;
+                // cladifyTree(tree, model);
                 cladifyTree(tree);
 
                 // report progress
@@ -154,6 +160,7 @@ public class CCD2 extends AbstractCCD {
     }
 
     @Override
+    // protected void cladifyTree(Tree tree, SampledAncestorModel model) {
     protected void cladifyTree(Tree tree) {
         if (super.storesBaseTrees()) {
             this.baseTrees.add(tree);

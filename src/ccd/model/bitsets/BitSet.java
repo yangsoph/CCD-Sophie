@@ -159,6 +159,7 @@ public class BitSet implements Cloneable {
 
     /**
      * Returns the subset of the bitSet with specified from (inclusive) and to (exclusive) indices.
+     * The subset is a copy that is independent of the original bitSet.
      *
      * @param fromBitIndex the starting (inclusive) bit index
      * @param toBitIndex   the ending (exclusive) bit index
