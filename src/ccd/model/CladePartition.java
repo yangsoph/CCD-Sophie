@@ -430,13 +430,17 @@ public class CladePartition {
      */
     public double getMaxSubtreeLogCCP() {
         if (this.maxSubtreeLogCCP > 0) {
+            System.out.println("if (this.maxSubtreeLogCCP > 0)");
             maxSubtreeLogCCP = this.getLogCCP();
+            System.out.println("maxSubtreeLogCCP = " + maxSubtreeLogCCP);
 
             for (Clade clade : childClades) {
+                System.out.println("childClades = " + clade);
+                System.out.println("maxSubtreeLogCCP += clade's MaxSubtreeLogCCP which is " + clade.getMaxSubtreeLogCCP());
                 maxSubtreeLogCCP += clade.getMaxSubtreeLogCCP();
             }
         }
-
+        System.out.println("Not in if (this.maxSubtreeLogCCP > 0), maxSubtreeLogCCP = " + maxSubtreeLogCCP);
         return maxSubtreeLogCCP;
     }
 

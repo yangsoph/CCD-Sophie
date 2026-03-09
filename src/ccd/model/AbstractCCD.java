@@ -299,8 +299,8 @@ public abstract class AbstractCCD implements ITreeDistribution {
             // } else {
             //     tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
             // }
-            // tempClade.combineClades(firstChildClade, secondChildClade);
-            tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
+            tempClade.combineClades(firstChildClade, secondChildClade);
+            // tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
             // cladeInBits.or(firstChildClade.getCladeInBits());
             // cladeInBits.or(secondChildClade.getCladeInBits());
         }
@@ -940,8 +940,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 vertex.setHeight(clade.getMeanOccurredHeight());
             }
         } else {
-            System.out.println("getVertexBasedOnStrategy " + clade);
-            System.out.println(clade.getCladeInBits());
             CladePartition partition = getPartitionBasedOnStrategy(clade, samplingStrategy);
             if (partition == null) {
                 throw new AssertionError("Unsuccessful to find clade partition of clade: " + clade.getCladeInBits());

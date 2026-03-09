@@ -825,11 +825,17 @@ public class Clade {
         // its two subtrees
         for (CladePartition partition : partitions) {
             double partitionMaxLogCCP = partition.getMaxSubtreeLogCCP();
+            System.out.println();
+            System.out.println(partition);
 
             if (partitionMaxLogCCP > maxSubtreeLogCCP || maxSubtreeLogCCP > 0) {
+                System.out.println("partitionMaxLogCCP > maxSubtreeLogCCP. " + "partitionMaxLogCCP = " + partitionMaxLogCCP + " maxSubtreeLogCCP = " + maxSubtreeLogCCP);
                 maxSubtreeLogCCP = partitionMaxLogCCP;
                 maxSubtreeCCPPartition = partition;
+                System.out.println("after setting. " + " maxSubtreeLogCCP = " + maxSubtreeLogCCP);
+                System.out.println("maxSubtreeCCPPartition " + maxSubtreeCCPPartition);
             } else if (partitionMaxLogCCP == maxSubtreeLogCCP) {
+                System.out.println("partitionMaxLogCCP == maxSubtreeLogCCP. " + "partitionMaxLogCCP = " + partitionMaxLogCCP + " maxSubtreeLogCCP = " + maxSubtreeLogCCP);
                 // System.out.println("Tie found for computeMaxSubtreeccd.");
                 Clade smallCladeMax = maxSubtreeCCPPartition.getSmallerChild();
                 Clade smallCladeCurrent = partition.getSmallerChild();
@@ -856,6 +862,8 @@ public class Clade {
                         maxSubtreeCCPPartition = partition;
                     }
                 }
+                System.out.println("after setting. " + " maxSubtreeLogCCP = " + maxSubtreeLogCCP);
+                System.out.println("maxSubtreeCCPPartition " + maxSubtreeCCPPartition);
             }
         }
     }
