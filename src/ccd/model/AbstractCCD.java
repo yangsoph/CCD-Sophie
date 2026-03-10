@@ -299,8 +299,8 @@ public abstract class AbstractCCD implements ITreeDistribution {
             // } else {
             //     tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
             // }
-            tempClade.combineClades(firstChildClade, secondChildClade);
-            // tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
+            // tempClade.combineClades(firstChildClade, secondChildClade);
+            tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
             // cladeInBits.or(firstChildClade.getCladeInBits());
             // cladeInBits.or(secondChildClade.getCladeInBits());
         }
@@ -319,6 +319,8 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 currentPartition = currentClade.createCladePartition(firstChildClade, secondChildClade);
             }
             currentPartition.increaseOccurrenceCount(vertex.getHeight());
+            System.out.println("currentPartition = " + currentPartition);
+            System.out.println("ParentClade" + currentPartition.getParentClade());
         }
         // System.out.println("at the end of cladifyVertex, currentClade" + currentClade);
         // System.out.println();
@@ -1044,6 +1046,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
         tidyUpCacheIfDirty();
         resetCacheIfProbabilitiesDirty();
 
+        System.out.println("root clade " + this.rootClade);
         return this.rootClade.getMaxSubtreeLogCCP();
     }
 

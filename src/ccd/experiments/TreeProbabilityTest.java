@@ -2,10 +2,7 @@ package ccd.experiments;
 
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;
-import ccd.model.CCD0;
-import ccd.model.CCD1;
-import ccd.model.Clade;
-import ccd.model.WrappedBeastTree;
+import ccd.model.*;
 import ccd.algorithms.LoadOrStoreTrees;
 import ccd.model.bitsets.BitSet;
 
@@ -38,6 +35,9 @@ public class TreeProbabilityTest {
         int sampledAncestorCount = 0;
         for (Clade clade : ccd1.getClades()) {
             System.out.println(clade);
+            for (CladePartition partition : clade.getPartitions()) {
+                System.out.println(partition);
+            }
             cladeBin[clade.size()] += 1;
             if (clade.isSampledAncestor()) {
                 sampledAncestorCount++;
