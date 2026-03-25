@@ -127,7 +127,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
-    // public AbstractCCD(List<Tree> trees, double burnin, SampledAncestorModel model) {
     public AbstractCCD(List<Tree> trees, double burnin) {
         this(trees.get(0).getLeafNodeCount(), true);
 
@@ -158,7 +157,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
      *                       {@link AbstractCCD}; all of its trees are used
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
-    // public AbstractCCD(TreeSet treeSet, boolean storeBaseTrees, SampledAncestorModel model) {
     public AbstractCCD(TreeSet treeSet, boolean storeBaseTrees) {
         // this(treeSet, treeSet.totalTrees - treeSet.burninCount, storeBaseTrees, model);
         this(treeSet, treeSet.totalTrees - treeSet.burninCount, storeBaseTrees);
@@ -174,7 +172,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
      * @param numTreesToUse  the number of trees to use from the treeSet
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
-    // public AbstractCCD(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees, SampledAncestorModel model) {
     public AbstractCCD(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees) {
         this(storeBaseTrees);
         this.baseTreeSet = treeSet;
@@ -253,7 +250,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
      *
      * @param tree to be added and processed into the CCD graph
      */
-    // public void addTree(Tree tree, SampledAncestorModel model) {
     public void addTree(Tree tree) {
         this.numBaseTrees++;
         // this.cladifyTree(tree, model);
@@ -262,7 +258,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
     }
 
     /* Helper method; process one tree into this CCD */
-    // protected void cladifyTree(Tree tree, SampledAncestorModel model) {
     protected void cladifyTree(Tree tree) {
         if (storeBaseTrees) {
             this.baseTrees.add(tree);
@@ -294,13 +289,8 @@ public abstract class AbstractCCD implements ITreeDistribution {
             firstChildClade = cladifyVertex(vertex.getChildren().get(0));
             secondChildClade = cladifyVertex(vertex.getChildren().get(1));
 
-            // if ((model == SampledAncestorModel.NotApplicable) || (model == SampledAncestorModel.ExtendedLeaf)) {
-            //     tempClade.combineClades(firstChildClade, secondChildClade)
-            // } else {
-            //     tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
-            // }
-            // tempClade.combineClades(firstChildClade, secondChildClade);
-            tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
+            tempClade.combineClades(firstChildClade, secondChildClade);
+            // tempClade.combineCladesWithExtendedClade(firstChildClade, secondChildClade);
             // cladeInBits.or(firstChildClade.getCladeInBits());
             // cladeInBits.or(secondChildClade.getCladeInBits());
         }
@@ -319,8 +309,8 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 currentPartition = currentClade.createCladePartition(firstChildClade, secondChildClade);
             }
             currentPartition.increaseOccurrenceCount(vertex.getHeight());
-            System.out.println("currentPartition = " + currentPartition);
-            System.out.println("ParentClade" + currentPartition.getParentClade());
+            // System.out.println("currentPartition = " + currentPartition);
+            // System.out.println("ParentClade" + currentPartition.getParentClade());
         }
         // System.out.println("at the end of cladifyVertex, currentClade" + currentClade);
         // System.out.println();
