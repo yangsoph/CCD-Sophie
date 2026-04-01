@@ -17,7 +17,7 @@ public class PointEstSampledAncestor {
 
     public static void main(String[] args) throws IOException {
 
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/point_estimate/point_est_results.csv";
+        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_numSA_pointEst.csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -27,7 +27,10 @@ public class PointEstSampledAncestor {
         StringBuilder sb = new StringBuilder();
         sb.append("rep").append(separator);
         sb.append("numTaxa").append(separator);
-        sb.append("RF_CCD1").append(separator);
+        sb.append("numSA_in_CCD1map").append(separator);
+        sb.append("numSA_in_truth").append(separator);
+        sb.append("RF_dist").append(separator);
+        sb.append("SA_dist");
         writer.println(sb.toString());
         writer.flush();
 
@@ -47,15 +50,18 @@ public class PointEstSampledAncestor {
 
             CCD1 ccd1 = new CCD1(treeSet, false);
             WrappedBeastTree mapTreeCCD1 = new WrappedBeastTree(ccd1.getMAPTree());
+            int numSACCD1MAP = mapTreeCCD1.getNumberOfSampledAncestors();
+            int numSACCD1Truth = trueTree.getNumberOfSampledAncestors();
             int distRFCCD1 = TreeDistances.robinsonsFouldDistance(trueTree, mapTreeCCD1);
+            int distSACCD1 = TreeDistances.sampledAncestorDistance(trueTree, mapTreeCCD1);
 
             sb = new StringBuilder();
             sb.append(i).append(separator);
             sb.append(numTaxa).append(separator);
-            sb.append(distRFCCD1);
-            if (i != reps) {
-                sb.append(separator);
-            }
+            sb.append(numSACCD1MAP).append(separator);
+            sb.append(numSACCD1Truth).append(separator);
+            sb.append(distRFCCD1).append(separator);
+            sb.append(distSACCD1);
             writer.println(sb.toString());
             writer.flush();
         }

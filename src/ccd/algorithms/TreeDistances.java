@@ -1,5 +1,6 @@
 package ccd.algorithms;
 
+import beast.base.evolution.tree.Node;
 import ccd.model.WrappedBeastTree;
 import ccd.model.bitsets.BitSet;
 
@@ -29,6 +30,23 @@ public class TreeDistances {
         ArrayList<BitSet> secondClades = second.getNontrivialClades();
         firstClades.removeAll(secondClades);
         return firstClades.size();
+    }
+
+    /**
+     * Compute the sampled ancestor distance (divided by 2) of the two given
+     * trees, that is, the number of sampled ancestor nodes in the first tree
+     * that are not in the second tree. Assumption is that the two trees are
+     * binary otherwise the current implementation is not symmetric.
+     *
+     * @param first  tree, assumed to be binary
+     * @param second tree, assumed to be binary
+     * @return the sampled ancestor distance (divided by 2) for the two given trees
+     */
+    public static int sampledAncestorDistance(WrappedBeastTree first, WrappedBeastTree second) {
+        ArrayList<Node> firstNodes = first.getSampledAncestors();
+        ArrayList<Node> secondNodes = second.getSampledAncestors();
+        firstNodes.removeAll(secondNodes);
+        return firstNodes.size();
     }
 
     /**

@@ -6,6 +6,7 @@ import ccd.algorithms.TreeDistances;
 import ccd.model.bitsets.BitSet;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class WrappedBeastTree {
 
@@ -42,6 +43,28 @@ public class WrappedBeastTree {
 
         cladeOfVertex[vertex.getNr()] = cladeAsBitSet;
         return cladeAsBitSet;
+    }
+
+    public int getNumberOfSampledAncestors() {
+        int numberOfSampledAncestors = 0;
+        List<Node> leaves = wrappedTree.getExternalNodes();
+        for (Node leaf : leaves) {
+            if (leaf.getLength() == 0) {
+                numberOfSampledAncestors++;
+            }
+        }
+        return numberOfSampledAncestors;
+    }
+
+    public ArrayList<Node> getSampledAncestors() {
+        ArrayList<Node> sampledAncestorNodes = new ArrayList<>();
+        List<Node> leaves = wrappedTree.getExternalNodes();
+        for (Node leaf : leaves) {
+            if (leaf.getLength() == 0) {
+                sampledAncestorNodes.add(leaf);
+            }
+        }
+        return sampledAncestorNodes;
     }
 
     /**

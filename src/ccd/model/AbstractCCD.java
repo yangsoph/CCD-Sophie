@@ -969,8 +969,11 @@ public abstract class AbstractCCD implements ITreeDistribution {
             if (heightStrategy == HeightSettingStrategy.MeanOccurredHeights) {
                 vertex.setHeight(clade.getMeanOccurredHeight());
             } else if (heightStrategy == HeightSettingStrategy.One) {
-                double height = Math.max(firstChild.getHeight(), secondChild.getHeight()) + 1;
-                vertex.setHeight(height);
+                if (partition.containsSampledAncestorChild()) {
+                    vertex.setHeight(Math.max(firstChild.getHeight(), secondChild.getHeight()));
+                } else {
+                    vertex.setHeight(Math.max(firstChild.getHeight(), secondChild.getHeight()) + 1);
+                }
             } else if (heightStrategy == HeightSettingStrategy.CommonAncestorHeights) {
                 // out.println("\nvertex = " + vertex);
                 // out.println("vertex.getHeight() = " + vertex.getHeight());

@@ -255,6 +255,13 @@ public class CladePartition {
                 && this.containsChildClade(otherPartition.getChildClades()[1]);
     }
 
+    /**
+     * @return whether one of the children is a sampled ancestor
+     */
+    public boolean containsSampledAncestorChild() {
+        return (childClades[0].isSampledAncestor() || childClades[1].isSampledAncestor());
+    }
+
 
     /* -- GETTERS RECURSIVE VALUES -- */
 
