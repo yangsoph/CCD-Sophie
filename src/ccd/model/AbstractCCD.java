@@ -300,8 +300,6 @@ public abstract class AbstractCCD implements ITreeDistribution {
             currentClade = addNewClade(cladeInBits);
         }
         currentClade.increaseOccurrenceCount(vertex.getHeight());
-        // System.out.println(currentClade.getCladeInBits());
-        // System.out.println(currentClade.getCladeInBitsTaxaOnly());
 
         if (!vertex.isLeaf()) {
             CladePartition currentPartition = currentClade.getCladePartition(firstChildClade, secondChildClade);
@@ -309,11 +307,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 currentPartition = currentClade.createCladePartition(firstChildClade, secondChildClade);
             }
             currentPartition.increaseOccurrenceCount(vertex.getHeight());
-            // System.out.println("currentPartition = " + currentPartition);
-            // System.out.println("ParentClade" + currentPartition.getParentClade());
         }
-        // System.out.println("at the end of cladifyVertex, currentClade" + currentClade);
-        // System.out.println();
         return currentClade;
     }
 

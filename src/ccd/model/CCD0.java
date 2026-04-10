@@ -839,17 +839,19 @@ public class CCD0 extends AbstractCCD {
         double cladeValue = useCladeParameters ? clade.getCladeParameter() : clade.getCladeCredibility();
 
         if (clade.isLeaf()) {
-            // a leaf has no partition, sum of probabilities is 1
-            clade.setSumCladeCredibilities(1);
-            return 1.0;
-        } else if (clade.isCherry()) {
-            // a cherry has only one partition
-            if (clade.partitions.isEmpty()) {
-                throw new AssertionError("Cherry should contain a clade split.");
-            }
-            clade.partitions.get(0).setCCP(1);
+            // a leaf has no partition, sum of probabilities is 1 (when there is no sampled ancestor)
+            // clade.setSumCladeCredibilities(1);
             clade.setSumCladeCredibilities(cladeValue);
+            // return 1.0;
             return cladeValue;
+            // } else if (clade.isCherry()) {
+            //     // a cherry has only one partition (when there is no sampled ancestor)
+            //     if (clade.partitions.isEmpty()) {
+            //         throw new AssertionError("Cherry should contain a clade split.");
+            //     }
+            //     clade.partitions.get(0).setCCP(1);
+            //     clade.setSumCladeCredibilities(cladeValue);
+            //     return cladeValue;
         } else {
             // other might have more partitions
             double sumSubtreeProbabilities = 0.0;
