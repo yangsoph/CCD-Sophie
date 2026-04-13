@@ -269,7 +269,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
     }
 
     /* Recursive helper method */
-    private Clade cladifyVertex(Node vertex) {
+    protected Clade cladifyVertex(Node vertex) {
         Clade tempClade = new Clade(this);
         // BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1); // plus 1 bit for sampled ancestor flag
         Clade firstChildClade = null;
@@ -1320,7 +1320,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
     }
 
     /* Recursive helper method */
-    private Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog) {
+    protected Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog) {
         BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1);
 
         if (vertex.isLeaf()) {
