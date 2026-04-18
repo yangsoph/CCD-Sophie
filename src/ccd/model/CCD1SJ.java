@@ -6,9 +6,7 @@ import beastfx.app.treeannotator.TreeAnnotator.TreeSet;
 import ccd.model.bitsets.BitSet;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * CCD1 with extended-split (SJ) identity for sampled-ancestor trees.
@@ -21,11 +19,15 @@ import java.util.Set;
  * <p>Leaves are represented as plain (taxon-only) clades; their SA-ness is
  * carried by their parent's flags.
  *
- * <p>Each extended root variant lives in {@code cladeMapping} like any other
- * extended clade. At the root, the conditional split probability is
- * {@code partition.count / numBaseTrees} (rather than the parent's own
- * count), matching the SJ semantics where each observed root variant
- * contributes 1/nTrees to the marginal at the root.
+ * <p>The placeholder {@code rootClade} holds one {@link CladePartition} per
+ * observed extended root variant: each partition's children are
+ * {@code (variant, emptyClade)}, where {@code emptyClade} is a shared sister
+ * carrying no taxa. The marginal probability of a root variant is therefore
+ * {@code rootClade.getCladePartition(variant, emptyClade).getCCP() =
+ * variantCount / numBaseTrees}. This structure keeps the standard CCD graph
+ * conventions (every real clade reachable from rootClade via partitions) so
+ * algorithms such as clade-probability BFS and per-clade max-CCP caching work
+ * on the variants without special casing.
  *
  * <p>Identity bitset layout (width 2n+1):
  * <ul>
@@ -34,20 +36,16 @@ import java.util.Set;
  *       direct leaf child of this clade and is non-SA. For a plain leaf, no
  *       bit in this range is set.
  *   <li>bit 2n: sentinel for the placeholder root clade (only the
- *       AbstractCCD-managed rootClade sets it; SJ never uses it for splits).
+ *       AbstractCCD-managed rootClade sets it; variants and other clades do
+ *       not use it).
  * </ul>
  */
 public class CCD1SJ extends CCD1 {
 
-    /** Extended root variants (clades whose taxa-bits cover all leaves).
+    /** Shared empty sister used in rootClade's (variant, emptyClade) partitions.
      *  Lazy-initialised: super constructor calls cladifyTree before subclass
-     *  field initialisers run, so this is created on first use. */
-    protected Set<Clade> extendedRootVariants;
-
-    private Set<Clade> rootVariants() {
-        if (extendedRootVariants == null) extendedRootVariants = new LinkedHashSet<>();
-        return extendedRootVariants;
-    }
+     *  field initialisers run, so this is populated in initializeRootClade. */
+    protected Clade emptyClade;
 
     public CCD1SJ(List<Tree> trees, double burnin) {
         super(trees, burnin);
@@ -75,14 +73,18 @@ public class CCD1SJ extends CCD1 {
     protected void initializeRootClade(int numLeaves) {
         this.leafArraySize = numLeaves;
 
-        // Placeholder root clade. SJ does not use it for probability or
-        // sampling; extended root variants are stored in cladeMapping
-        // alongside other extended clades. The placeholder exists only to
-        // satisfy AbstractCCD invariants that expect a non-null rootClade.
+        // Placeholder root clade (sentinel bit 2n set, no taxa bits). Its
+        // partitions are (variant, emptyClade) entries added during
+        // cladification.
         BitSet rootBitSet = BitSet.newBitSet(2 * numLeaves + 1);
         rootBitSet.set(2 * numLeaves);
         this.rootClade = new Clade(rootBitSet, this);
         cladeMapping.put(rootClade.getCladeInBits(), rootClade);
+
+        // Shared empty sister: distinct bitset key (no bits set) so it lives
+        // in cladeMapping without colliding with any real clade.
+        BitSet emptyKey = BitSet.newBitSet(2 * numLeaves + 1);
+        this.emptyClade = addNewClade(emptyKey);
     }
 
     /* -- TREE INSERTION -- */
@@ -110,9 +112,6 @@ public class CCD1SJ extends CCD1 {
         Clade currentClade = cladeMapping.get(selfKey);
         if (currentClade == null) {
             currentClade = addNewClade(selfKey);
-            if (isRoot) {
-                rootVariants().add(currentClade);
-            }
         }
         currentClade.increaseOccurrenceCount(vertex.getHeight());
 
@@ -122,6 +121,19 @@ public class CCD1SJ extends CCD1 {
         }
         partition.increaseOccurrenceCount(vertex.getHeight());
 
+        if (isRoot) {
+            // Attach this root variant under the placeholder rootClade via a
+            // (variant, emptyClade) partition. rootClade's own occurrence
+            // count ticks up once per tree so that
+            // partition.getCCP() = variantCount / numBaseTrees.
+            rootClade.increaseOccurrenceCount(vertex.getHeight());
+            CladePartition rootPart = rootClade.getCladePartition(currentClade, emptyClade);
+            if (rootPart == null) {
+                rootPart = rootClade.createCladePartition(currentClade, emptyClade);
+            }
+            rootPart.increaseOccurrenceCount(vertex.getHeight());
+        }
+
         return currentClade;
     }
 
@@ -129,10 +141,27 @@ public class CCD1SJ extends CCD1 {
 
     @Override
     protected Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog) {
-        return computeProbSJVertex(vertex, runningProbability, computeLog, true);
+        Clade variant = computeProbSJVertex(vertex, runningProbability, computeLog);
+        if (variant == null) {
+            return null;
+        }
+        // Multiply in the marginal probability of this root variant,
+        // captured by the (variant, emptyClade) partition on rootClade.
+        CladePartition rootPart = rootClade.getCladePartition(variant, emptyClade);
+        if (rootPart == null) {
+            setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+        double ccp = rootPart.getCCP();
+        if (computeLog) {
+            runningProbability[0] += Math.log(ccp);
+        } else {
+            runningProbability[0] *= ccp;
+        }
+        return variant;
     }
 
-    private Clade computeProbSJVertex(Node vertex, double[] runningProbability, boolean computeLog, boolean isRoot) {
+    private Clade computeProbSJVertex(Node vertex, double[] runningProbability, boolean computeLog) {
         if (vertex.isLeaf()) {
             BitSet leafKey = leafKey(vertex.getNr());
             Clade leafClade = cladeMapping.get(leafKey);
@@ -140,16 +169,13 @@ public class CCD1SJ extends CCD1 {
                 setComputedNoProbability(runningProbability, computeLog);
                 return null;
             }
-            // SJ leaves are plain (one per taxon, present in every tree); their
-            // marginal probability is 1 and contributes nothing to the product.
-            // Skip the parent-class BFS-based probability lookup, which is not
-            // valid for SJ since computeCladeProbabilities walks down from the
-            // unused placeholder rootClade and never visits leaves via splits.
+            // SJ leaves are plain (one per taxon, present in every tree);
+            // marginal 1 — no contribution to the product.
             return leafClade;
         }
 
-        Clade firstChildClade = computeProbSJVertex(vertex.getChildren().get(0), runningProbability, computeLog, false);
-        Clade secondChildClade = computeProbSJVertex(vertex.getChildren().get(1), runningProbability, computeLog, false);
+        Clade firstChildClade = computeProbSJVertex(vertex.getChildren().get(0), runningProbability, computeLog);
+        Clade secondChildClade = computeProbSJVertex(vertex.getChildren().get(1), runningProbability, computeLog);
 
         if (firstChildClade == null || secondChildClade == null) {
             setComputedNoProbability(runningProbability, computeLog);
@@ -169,16 +195,7 @@ public class CCD1SJ extends CCD1 {
             return null;
         }
 
-        double ccp;
-        if (isRoot) {
-            // Denominator at the root is the total tree count, summed across
-            // all extended root variants. Computed locally rather than reading
-            // numBaseTrees, which AbstractCCD does not populate when its
-            // List<Tree> constructor is called with burnin == 0.
-            ccp = partition.getNumberOfOccurrences() / (double) totalRootCount();
-        } else {
-            ccp = partition.getCCP();
-        }
+        double ccp = partition.getCCP();
         if (computeLog) {
             runningProbability[0] += Math.log(ccp);
         } else {
@@ -187,107 +204,112 @@ public class CCD1SJ extends CCD1 {
         return currentClade;
     }
 
-    /* -- SAMPLING -- */
+    /* -- SAMPLING & MAP -- */
 
     @Override
-    public Tree sampleTree(HeightSettingStrategy heightStrategy) {
-        return sampleSJTree(heightStrategy);
-    }
+    protected Tree getTreeBasedOnStrategy(SamplingStrategy samplingStrategy,
+                                          HeightSettingStrategy heightStrategy) {
+        tidyUpCacheIfDirty();
 
-    private Tree sampleSJTree(HeightSettingStrategy heightStrategy) {
-        // 1. Sample a root variant weighted by its occurrence count.
-        Clade rootVariant = sampleRootVariant();
+        CladePartition rootPart = pickRootPartition(samplingStrategy);
+        Clade variant = variantChildOf(rootPart);
 
-        // 2. Recursively sample partitions.
-        int[] runningInnerIndex = new int[]{this.getSizeOfLeavesArray()};
-        double[] heightCounter = new double[]{0.0};
-        Node root = sampleVertex(rootVariant, runningInnerIndex, heightStrategy, heightCounter);
+        int[] innerIdx = new int[]{ this.getSizeOfLeavesArray() };
+        Node root = buildSubtree(variant, samplingStrategy, innerIdx);
         return new Tree(root);
     }
 
-    private int totalRootCount() {
-        int total = 0;
-        for (Clade rv : rootVariants()) {
-            total += rv.getNumberOfOccurrences();
-        }
-        return total;
+    private Clade variantChildOf(CladePartition partition) {
+        Clade[] kids = partition.getChildClades();
+        return (kids[0] == emptyClade) ? kids[1] : kids[0];
     }
 
-    private Clade sampleRootVariant() {
-        Set<Clade> variants = rootVariants();
-        int total = totalRootCount();
-        int draw = random.nextInt(Math.max(total, 1));
-        int cum = 0;
-        for (Clade rv : variants) {
-            cum += rv.getNumberOfOccurrences();
-            if (draw < cum) return rv;
+    private CladePartition pickRootPartition(SamplingStrategy strategy) {
+        ArrayList<CladePartition> partitions = rootClade.getPartitions();
+        if (partitions.isEmpty()) {
+            throw new AssertionError("CCD1SJ: rootClade has no variant partitions.");
         }
-        return variants.iterator().next();
+        if (strategy == SamplingStrategy.MAP) {
+            double bestScore = Double.NEGATIVE_INFINITY;
+            CladePartition best = partitions.get(0);
+            for (CladePartition p : partitions) {
+                Clade variant = variantChildOf(p);
+                double score = Math.log(p.getCCP()) + variant.getMaxSubtreeLogCCP();
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = p;
+                }
+            }
+            return best;
+        }
+        // Sampling (and any non-MAP strategy): weighted draw by CCP.
+        double total = 0;
+        for (CladePartition p : partitions) total += p.getCCP();
+        double r = random.nextDouble() * total;
+        double cum = 0;
+        for (CladePartition p : partitions) {
+            cum += p.getCCP();
+            if (r < cum) return p;
+        }
+        return partitions.get(partitions.size() - 1);
     }
 
-    private Node sampleVertex(Clade clade, int[] runningInnerIndex,
-                              HeightSettingStrategy heightStrategy, double[] heightCounter) {
+    private Node buildSubtree(Clade clade, SamplingStrategy strategy, int[] innerIdx) {
         if (clade.isLeaf()) {
             int leafNr = clade.getCladeInBits().nextSetBit(0);
             String taxonName = this.getSomeBaseTree().getTaxaNames()[leafNr];
-            Node vertex = new Node(taxonName);
-            vertex.setNr(leafNr);
-            // height set by parent (parent knows whether this leaf is SA)
-            return vertex;
+            Node node = new Node(taxonName);
+            node.setNr(leafNr);
+            // Height set by parent, which knows whether this leaf is SA.
+            return node;
         }
 
-        CladePartition partition = sampleCladePartition(clade);
+        CladePartition partition = pickInternalPartition(clade, strategy);
         if (partition == null) {
             throw new AssertionError("No partitions on clade: " + clade.getCladeInBits());
         }
 
-        Node firstChild = sampleVertex(partition.getChildClades()[0], runningInnerIndex, heightStrategy, heightCounter);
-        Node secondChild = sampleVertex(partition.getChildClades()[1], runningInnerIndex, heightStrategy, heightCounter);
+        Node firstChild = buildSubtree(partition.getChildClades()[0], strategy, innerIdx);
+        Node secondChild = buildSubtree(partition.getChildClades()[1], strategy, innerIdx);
 
-        Node vertex = new Node();
-        vertex.setNr(runningInnerIndex[0]++);
-        vertex.addChild(firstChild);
-        vertex.addChild(secondChild);
+        Node node = new Node();
+        node.setNr(innerIdx[0]++);
+        node.addChild(firstChild);
+        node.addChild(secondChild);
 
-        // Set heights so SA leaves get branch length 0.
-        // Default: parent gets height max(child)+1 (heightStrategy=One semantics);
-        // a direct leaf child marked SA in this clade's flags is then lifted to
-        // share the parent's height.
+        // "One" height semantics: parent = max(children)+1; SA leaves get
+        // parent's height (branch length 0).
         double parentHeight = Math.max(safeHeight(firstChild), safeHeight(secondChild)) + 1.0;
-        vertex.setHeight(parentHeight);
+        node.setHeight(parentHeight);
 
-        for (Node child : vertex.getChildren()) {
+        for (Node child : node.getChildren()) {
             if (child.isLeaf()) {
                 int leafNr = child.getNr();
                 boolean nonSA = clade.getCladeInBits().get(leafArraySize + leafNr);
-                if (nonSA) {
-                    child.setHeight(0.0);
-                } else {
-                    // SA leaf: contemporaneous with parent
-                    child.setHeight(parentHeight);
-                }
+                child.setHeight(nonSA ? 0.0 : parentHeight);
             }
         }
-        return vertex;
+        return node;
+    }
+
+    private CladePartition pickInternalPartition(Clade clade, SamplingStrategy strategy) {
+        ArrayList<CladePartition> partitions = clade.getPartitions();
+        if (strategy == SamplingStrategy.MAP) {
+            return clade.getMaxSubtreeCCPPartition();
+        }
+        double total = 0;
+        for (CladePartition p : partitions) total += p.getCCP();
+        double r = random.nextDouble() * total;
+        double cum = 0;
+        for (CladePartition p : partitions) {
+            cum += p.getCCP();
+            if (r < cum) return p;
+        }
+        return partitions.get(partitions.size() - 1);
     }
 
     private double safeHeight(Node n) {
         return n.isLeaf() ? 0.0 : n.getHeight();
-    }
-
-    private CladePartition sampleCladePartition(Clade clade) {
-        ArrayList<CladePartition> partitions = clade.getPartitions();
-        int total = 0;
-        for (CladePartition p : partitions) {
-            total += p.getNumberOfOccurrences();
-        }
-        int draw = random.nextInt(Math.max(total, 1));
-        int cum = 0;
-        for (CladePartition p : partitions) {
-            cum += p.getNumberOfOccurrences();
-            if (draw < cum) return p;
-        }
-        return partitions.get(partitions.size() - 1);
     }
 
     /* -- KEY CONSTRUCTION -- */

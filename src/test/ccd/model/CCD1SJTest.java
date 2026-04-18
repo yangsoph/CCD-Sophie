@@ -138,4 +138,22 @@ public class CCD1SJTest {
         assertEquals(1.0 / 3.0, p2, 0.02, "empirical P(Tree 2)");
         assertEquals(1.0 / 3.0, p3, 0.02, "empirical P(Tree 3)");
     }
+
+    @Test
+    public void testMAPTreePicksDominantVariant() {
+        // Tree 1 appears twice → marginal 2/4; Tree 2 and Tree 3 once each → 1/4.
+        // With distinct counts there's no root-level tie and MAP must return
+        // the Tree-1 variant (including its SA pattern: B is the SA).
+        List<Tree> trees = new ArrayList<>();
+        trees.add(parse("((A:1,B:0):1,(C:1,D:1):1):0;"));
+        trees.add(parse("((A:1,B:0):1,(C:1,D:1):1):0;"));
+        trees.add(parse("((A:0,B:1):1,(C:1,D:1):1):0;"));
+        trees.add(parse("(((A:1,B:1):1,C:0):1,D:2):0;"));
+
+        CCD1SJ sj = new CCD1SJ(trees, 0.0);
+        Tree map = sj.getMAPTree();
+
+        assertEquals(signature(trees.get(0).getRoot()), signature(map.getRoot()),
+                "MAP tree should be the duplicated Tree-1 variant");
+    }
 }
