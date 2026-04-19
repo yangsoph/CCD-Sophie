@@ -3,7 +3,6 @@ package ccd.model;
 import beast.base.evolution.tree.Node;
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator.TreeSet;
-import ccd.algorithms.sampledAncestor.SampledAncestorModel;
 import ccd.model.bitsets.BitSet;
 
 import java.util.List;
@@ -47,7 +46,6 @@ public class CCD1 extends AbstractCCD {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
-    // public CCD1(List<Tree> trees, double burnin, SampledAncestorModel model) {
     public CCD1(List<Tree> trees, double burnin) {
         super(trees, burnin);
     }
@@ -60,7 +58,6 @@ public class CCD1 extends AbstractCCD {
      *                whose distribution is approximated by the resulting
      *                {@link CCD1}; all of its trees are used
      */
-    // public CCD1(TreeSet treeSet, SampledAncestorModel model) {
     public CCD1(TreeSet treeSet) {
         this(treeSet, false);
     }
@@ -73,7 +70,6 @@ public class CCD1 extends AbstractCCD {
      *                      whose distribution is approximated by the resulting {@link CCD1}
      * @param numTreesToUse the number of trees to use from the treeSet
      */
-    // public CCD1(TreeSet treeSet, int numTreesToUse, SampledAncestorModel model) {
     public CCD1(TreeSet treeSet, int numTreesToUse) {
         super(treeSet, numTreesToUse, false);
     }
@@ -87,7 +83,6 @@ public class CCD1 extends AbstractCCD {
      *                       {@link CCD1}; all of its trees are used
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
-    // public CCD1(TreeSet treeSet, boolean storeBaseTrees, SampledAncestorModel model) {
     public CCD1(TreeSet treeSet, boolean storeBaseTrees) {
         super(treeSet, storeBaseTrees);
     }

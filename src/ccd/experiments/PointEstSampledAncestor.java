@@ -3,6 +3,7 @@ package ccd.experiments;
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.TreeDistances;
 import ccd.model.CCD1;
+import ccd.model.CCD1SJ;
 import ccd.model.WrappedBeastTree;
 import jam.panels.AddRemovePanel;
 
@@ -17,7 +18,7 @@ public class PointEstSampledAncestor {
 
     public static void main(String[] args) throws IOException {
 
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_numSA_pointEst.csv";
+        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_SJ_numSA_pointEst.csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -48,7 +49,7 @@ public class PointEstSampledAncestor {
 
             int numTaxa = trueTree.getWrappedTree().getLeafNodeCount();
 
-            CCD1 ccd1 = new CCD1(treeSet, false);
+            CCD1SJ ccd1 = new CCD1SJ(treeSet, false);
             WrappedBeastTree mapTreeCCD1 = new WrappedBeastTree(ccd1.getMAPTree());
             int numSACCD1MAP = mapTreeCCD1.getNumberOfSampledAncestors();
             int numSACCD1Truth = trueTree.getNumberOfSampledAncestors();

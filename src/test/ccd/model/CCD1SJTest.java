@@ -4,6 +4,7 @@ import beast.base.evolution.tree.Tree;
 import beast.base.evolution.tree.TreeParser;
 import ccd.model.CCD1;
 import ccd.model.CCD1SJ;
+import ccd.model.Clade;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -14,15 +15,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Reproduces the four-taxon worked example from doc/sa-models.tex.
- *
+ * <p>
  * Three sampled trees on taxa {A,B,C,D}, each with count 1:
- *   Tree 1: ((A,B:0),(C,D))   — B is SA
- *   Tree 2: ((A:0,B),(C,D))   — A is SA
- *   Tree 3: (((A,B),C:0),D)   — C is SA
- *
+ * Tree 1: ((A,B:0),(C,D))   — B is SA
+ * Tree 2: ((A:0,B),(C,D))   — A is SA
+ * Tree 3: (((A,B),C:0),D)   — C is SA
+ * <p>
  * Expected probabilities (in eighty-firsts):
- *   CP:  18, 18, 9
- *   SJ:  27, 27, 27
+ * CP:  18, 18, 9
+ * SJ:  27, 27, 27
  */
 public class CCD1SJTest {
 
