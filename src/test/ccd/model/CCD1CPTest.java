@@ -46,7 +46,7 @@ public class CCD1CPTest {
     }
 
     private static TreeAnnotator.MemoryFriendlyTreeSet sampleTreeSet() throws IOException {
-        String dataPath = "/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/example_trees/example_4taxa_rootSA.trees";
+        String dataPath = "/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/example_trees/4taxa_alexei.trees";
         TreeAnnotator.MemoryFriendlyTreeSet treeSet = new TreeAnnotator().new MemoryFriendlyTreeSet(dataPath, 0);
         return treeSet;
     }

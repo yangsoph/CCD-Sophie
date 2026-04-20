@@ -358,58 +358,6 @@ public class Clade {
         this.cladeAsBitSetTaxaOnly.clear(index);
     }
 
-    /**
-     * Marks the clade as sampled ancestor.
-     */
-    public void markAsSampledAncestor() {
-        // Note: we use 0 to represent sampled ancestor, and 1 to represent non sampled ancestor
-        this.cladeAsBitSet.clear(this.numTaxaInTree);
-    }
-
-    /**
-     * Marks the clade as non sampled ancestor.
-     */
-    public void markAsNonSampledAncestor() {
-        // Note: we use 0 to represent sampled ancestor, and 1 to represent non sampled ancestor
-        this.cladeAsBitSet.set(this.numTaxaInTree);
-    }
-
-    /**
-     * Combines this clade with another clade.
-     * Sampled ancestors are only marked at leaf level, the combined clade is never a sampled ancestor.
-     */
-    public void combineClades(Clade firstChildClade, Clade secondChildClade) {
-        // System.out.println("combine " + this);
-        // System.out.println("and " + anotherClade);
-        this.cladeAsBitSet.or(firstChildClade.cladeAsBitSet);
-        this.cladeAsBitSet.or(secondChildClade.cladeAsBitSet);
-        this.cladeAsBitSetTaxaOnly = this.cladeAsBitSet.getSubset(0, numTaxaInTree);
-        // System.out.println("get " + this);
-        // System.out.println("cladeAsBitSet" + this.cladeAsBitSet);
-        // System.out.println("cladeAsBitSetTaxaOnly" + this.cladeAsBitSetTaxaOnly);
-    }
-
-    /**
-     * Combines this clade with another clade.
-     * If one of the clades is a sampled ancestor leaf, the combined clade is marked as sampled ancestor.
-     */
-    public void combineCladesWithExtendedClade(Clade firstChildClade, Clade secondChildClade) {
-        this.cladeAsBitSet.or(firstChildClade.cladeAsBitSet);
-        this.cladeAsBitSet.or(secondChildClade.cladeAsBitSet);
-        // If one of the child is a sampled ancestor leaf, parent is marked as sampled ancestor
-        if ((firstChildClade.isSampledAncestor() && firstChildClade.isLeaf()) ||
-                (secondChildClade.isSampledAncestor() && secondChildClade.isLeaf())) {
-            this.markAsSampledAncestor();
-        }
-        // If both children are sampled ancestor, and they are not leaf, parent should not be a sampled ancestor
-        // i.e. sampled ancestorness does not pass to the grandparent generation
-        else if ((firstChildClade.isSampledAncestor() && !firstChildClade.isLeaf()) &&
-                (secondChildClade.isSampledAncestor() && !secondChildClade.isLeaf())) {
-            this.markAsNonSampledAncestor();
-        }
-        this.cladeAsBitSetTaxaOnly = this.cladeAsBitSet.getSubset(0, numTaxaInTree);
-    }
-
     /* -- STATE MANAGEMENT -- */
 
     /**
@@ -573,15 +521,6 @@ public class Clade {
     }
 
     /**
-     * @return whether this clade is a sampled ancestor
-     */
-    public boolean isSampledAncestor() {
-        // The bit in index = #taxa position in the bitSet of this clade, i.e. the last bit
-        // Note: we use 0 to represent sampled ancestor, and 1 to represent non sampled ancestor
-        return (!cladeAsBitSet.get(numTaxaInTree));
-    }
-
-    /**
      * @return whether this clade represents a root clade
      */
     public boolean isRoot() {
@@ -598,7 +537,6 @@ public class Clade {
     @Override
     public String toString() {
         return "Clade [taxa = " + cladeAsBitSetTaxaOnly + ", numOccurrences = " + numOccurrences
-                + ", is sampled ancestor = " + this.isSampledAncestor()
                 // + ", ccd = " + ccd
                 + ", num partitions = " + partitions.size()
                 + ", parameter = " + ((parameter < 0) ? getCladeCredibility() : parameter) + "]";

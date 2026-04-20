@@ -3,6 +3,7 @@ package ccd.experiments;
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.TreeDistances;
 import ccd.model.CCD1;
+import ccd.model.CCD1CP;
 import ccd.model.CCD1SJ;
 import ccd.model.WrappedBeastTree;
 import jam.panels.AddRemovePanel;

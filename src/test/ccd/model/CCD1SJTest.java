@@ -3,6 +3,7 @@ package test.ccd.model;
 import beast.base.evolution.tree.Tree;
 import beast.base.evolution.tree.TreeParser;
 import ccd.model.CCD1;
+import ccd.model.CCD1CP;
 import ccd.model.CCD1SJ;
 import ccd.model.Clade;
 import org.junit.jupiter.api.Test;
@@ -64,7 +65,7 @@ public class CCD1SJTest {
     @Test
     public void testCCD1CPProbabilities() {
         List<Tree> trees = sampleTrees();
-        CCD1 cp = new CCD1(trees, 0.0);
+        CCD1CP cp = new CCD1CP(trees, 0.0);
 
         double p1 = cp.getProbabilityOfTree(trees.get(0));
         double p2 = cp.getProbabilityOfTree(trees.get(1));

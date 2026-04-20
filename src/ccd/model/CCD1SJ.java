@@ -42,9 +42,11 @@ import java.util.List;
  */
 public class CCD1SJ extends CCD1 {
 
-    /** Shared empty sister used in rootClade's (variant, emptyClade) partitions.
-     *  Lazy-initialised: super constructor calls cladifyTree before subclass
-     *  field initialisers run, so this is populated in initializeRootClade. */
+    /**
+     * Shared empty sister used in rootClade's (variant, emptyClade) partitions.
+     * Lazy-initialised: super constructor calls cladifyTree before subclass
+     * field initialisers run, so this is populated in initializeRootClade.
+     */
     protected Clade emptyClade;
 
     public CCD1SJ(List<Tree> trees, double burnin) {
@@ -137,6 +139,21 @@ public class CCD1SJ extends CCD1 {
         return currentClade;
     }
 
+    /**
+     * @return whether the given clade has a sampled ancestor at its root
+     */
+    @Override
+    public boolean isSampledAncestor(Clade clade) {
+        BitSet bits = clade.getCladeInBits();
+        // check SA region: [n, 2n)
+        for (int i = leafArraySize; i < 2 * leafArraySize; i++) {
+            if (bits.get(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /* -- PROBABILITY -- */
 
     @Override
@@ -204,6 +221,35 @@ public class CCD1SJ extends CCD1 {
         return currentClade;
     }
 
+    /* -- KEY CONSTRUCTION -- */
+
+    private BitSet leafKey(int taxonIndex) {
+        BitSet key = BitSet.newBitSet(2 * leafArraySize + 1);
+        key.set(taxonIndex);
+        return key;
+    }
+
+    private BitSet extendedSelfKey(Node vertex) {
+        BitSet key = BitSet.newBitSet(2 * leafArraySize + 1);
+        collectTaxaBits(vertex, key);
+        for (Node child : vertex.getChildren()) {
+            if (child.isLeaf() && child.getLength() == 0) {
+                key.set(leafArraySize + child.getNr());
+            }
+        }
+        return key;
+    }
+
+    private void collectTaxaBits(Node vertex, BitSet key) {
+        if (vertex.isLeaf()) {
+            key.set(vertex.getNr());
+        } else {
+            for (Node child : vertex.getChildren()) {
+                collectTaxaBits(child, key);
+            }
+        }
+    }
+
     /* -- SAMPLING & MAP -- */
 
     @Override
@@ -214,7 +260,7 @@ public class CCD1SJ extends CCD1 {
         CladePartition rootPart = pickRootPartition(samplingStrategy);
         Clade variant = variantChildOf(rootPart);
 
-        int[] innerIdx = new int[]{ this.getSizeOfLeavesArray() };
+        int[] innerIdx = new int[]{this.getSizeOfLeavesArray()};
         Node root = buildSubtree(variant, samplingStrategy, innerIdx);
         return new Tree(root);
     }
@@ -285,8 +331,8 @@ public class CCD1SJ extends CCD1 {
         for (Node child : node.getChildren()) {
             if (child.isLeaf()) {
                 int leafNr = child.getNr();
-                boolean nonSA = clade.getCladeInBits().get(leafArraySize + leafNr);
-                child.setHeight(nonSA ? 0.0 : parentHeight);
+                boolean isSA = clade.getCladeInBits().get(leafArraySize + leafNr);
+                child.setHeight(isSA ? parentHeight : 0.0);
             }
         }
         return node;
@@ -310,35 +356,6 @@ public class CCD1SJ extends CCD1 {
 
     private double safeHeight(Node n) {
         return n.isLeaf() ? 0.0 : n.getHeight();
-    }
-
-    /* -- KEY CONSTRUCTION -- */
-
-    private BitSet leafKey(int taxonIndex) {
-        BitSet key = BitSet.newBitSet(2 * leafArraySize + 1);
-        key.set(taxonIndex);
-        return key;
-    }
-
-    private BitSet extendedSelfKey(Node vertex) {
-        BitSet key = BitSet.newBitSet(2 * leafArraySize + 1);
-        collectTaxaBits(vertex, key);
-        for (Node child : vertex.getChildren()) {
-            if (child.isLeaf() && child.getLength() != 0) {
-                key.set(leafArraySize + child.getNr());
-            }
-        }
-        return key;
-    }
-
-    private void collectTaxaBits(Node vertex, BitSet key) {
-        if (vertex.isLeaf()) {
-            key.set(vertex.getNr());
-        } else {
-            for (Node child : vertex.getChildren()) {
-                collectTaxaBits(child, key);
-            }
-        }
     }
 
     /* -- MISC -- */
