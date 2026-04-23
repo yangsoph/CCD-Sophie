@@ -12,9 +12,9 @@ public class WrappedBeastTree {
 
     private int count = 1;
 
-    private Tree wrappedTree;
+    protected Tree wrappedTree;
 
-    private BitSet[] cladeOfVertex;
+    protected BitSet[] cladeOfVertex;
 
     /** Matrix containing distances (#edges) between pairs of leaves. */
     private double[][] pathDistanceMatrix;
@@ -30,7 +30,7 @@ public class WrappedBeastTree {
         return wrappedTree;
     }
 
-    private BitSet initCladeBitSet(Node vertex) {
+    protected BitSet initCladeBitSet(Node vertex) {
         BitSet cladeAsBitSet = BitSet.newBitSet(wrappedTree.getLeafNodeCount());
         if (vertex.isLeaf()) {
             cladeAsBitSet.set(vertex.getNr());
@@ -40,7 +40,6 @@ public class WrappedBeastTree {
                 cladeAsBitSet.or(childBitSet);
             }
         }
-
         cladeOfVertex[vertex.getNr()] = cladeAsBitSet;
         return cladeAsBitSet;
     }

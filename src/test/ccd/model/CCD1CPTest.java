@@ -3,10 +3,8 @@ package test.ccd.model;
 import beast.base.evolution.tree.Tree;
 import beast.base.evolution.tree.TreeParser;
 import beastfx.app.treeannotator.TreeAnnotator;
-import ccd.model.CCD1;
-import ccd.model.CCD1CP;
-import ccd.model.Clade;
-import ccd.model.WrappedBeastTree;
+import ccd.algorithms.TreeDistances;
+import ccd.model.*;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -43,6 +41,19 @@ public class CCD1CPTest {
         trees.add(parse("((A:0,B:1):1,(C:1,D:1):1):0;"));
         trees.add(parse("(((A:1,B:1):1,C:0):1,D:2):0;"));
         return trees;
+    }
+
+    @Test
+    public void distanceTest() {
+        List<Tree> trees = sampleTreeList();
+        WrappedBeastTreeSA tree1 = new WrappedBeastTreeSA(trees.get(0));
+        WrappedBeastTreeSA tree2 = new WrappedBeastTreeSA(trees.get(1));
+        System.out.println("RF distance (SA WrappedBeastTree) = " + TreeDistances.robinsonsFouldDistance(tree1, tree2));
+        System.out.println("SA distance (SA WrappedBeastTree) = " + TreeDistances.sampledAncestorDistance(tree1, tree2));
+        WrappedBeastTree tree1NonSA = new WrappedBeastTree(trees.get(0));
+        WrappedBeastTree tree2NonSA = new WrappedBeastTree(trees.get(1));
+        System.out.println("RF distance (non-SA WrappedBeastTree) = " + TreeDistances.robinsonsFouldDistance(tree1NonSA, tree2NonSA));
+        System.out.println("SA distance (non-SA WrappedBeastTree) = " + TreeDistances.sampledAncestorDistance(tree1NonSA, tree2NonSA));
     }
 
     private static TreeAnnotator.MemoryFriendlyTreeSet sampleTreeSet() throws IOException {

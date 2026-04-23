@@ -2,10 +2,8 @@ package ccd.experiments;
 
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.TreeDistances;
-import ccd.model.CCD1;
-import ccd.model.CCD1CP;
-import ccd.model.CCD1SJ;
-import ccd.model.WrappedBeastTree;
+import ccd.model.*;
+import ccd.model.bitsets.BitSet;
 import jam.panels.AddRemovePanel;
 
 import java.io.File;
@@ -15,11 +13,13 @@ import java.io.PrintWriter;
 
 public class PointEstSampledAncestor {
 
-    public static int reps = 100;
+    public static int startRep = 0;
+    public static int endRep = 100;
 
     public static void main(String[] args) throws IOException {
 
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_SJ_numSA_pointEst.csv";
+        // String outputPathName = "/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/experiment/local_test.csv";
+        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_numSA_pointEst_SJ.csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -32,11 +32,12 @@ public class PointEstSampledAncestor {
         sb.append("numSA_in_CCD1map").append(separator);
         sb.append("numSA_in_truth").append(separator);
         sb.append("RF_dist").append(separator);
-        sb.append("SA_dist");
+        sb.append("SA_dist").append(separator);
+        sb.append("sym_SA_dist");
         writer.println(sb.toString());
         writer.flush();
 
-        for (int i = 0; i < reps; i++) {
+        for (int i = startRep; i <= endRep; i++) {
 
             // String treeSetDir = "/Volumes/DYNABOOK/wcss_sa/mcmc_tree_set/FBD-" + i + ".trees";
             String treeSetDir = "/nesi/nobackup/uoa04397/sophie/fossilBD/wcss_sa/beast_output/FBD-" + i + ".trees";
@@ -46,16 +47,18 @@ public class PointEstSampledAncestor {
             TreeAnnotator.MemoryFriendlyTreeSet treeSet = new TreeAnnotator().new MemoryFriendlyTreeSet(treeSetDir, 10);
             TreeAnnotator.MemoryFriendlyTreeSet trueTreeSet = new TreeAnnotator().new MemoryFriendlyTreeSet(trueTreeDir, 0);
             trueTreeSet.reset();
-            WrappedBeastTree trueTree = new WrappedBeastTree(trueTreeSet.next());
-
+            WrappedBeastTreeSA trueTree = new WrappedBeastTreeSA(trueTreeSet.next());
             int numTaxa = trueTree.getWrappedTree().getLeafNodeCount();
 
+            // CCD1CP ccd1 = new CCD1CP(treeSet, false);
             CCD1SJ ccd1 = new CCD1SJ(treeSet, false);
-            WrappedBeastTree mapTreeCCD1 = new WrappedBeastTree(ccd1.getMAPTree());
+            WrappedBeastTreeSA mapTreeCCD1 = new WrappedBeastTreeSA(ccd1.getMAPTree());
+
             int numSACCD1MAP = mapTreeCCD1.getNumberOfSampledAncestors();
             int numSACCD1Truth = trueTree.getNumberOfSampledAncestors();
             int distRFCCD1 = TreeDistances.robinsonsFouldDistance(trueTree, mapTreeCCD1);
             int distSACCD1 = TreeDistances.sampledAncestorDistance(trueTree, mapTreeCCD1);
+            double symDistSACCD1 = TreeDistances.sampledAncestorSymmetricDistance(trueTree, mapTreeCCD1);
 
             sb = new StringBuilder();
             sb.append(i).append(separator);
@@ -63,7 +66,8 @@ public class PointEstSampledAncestor {
             sb.append(numSACCD1MAP).append(separator);
             sb.append(numSACCD1Truth).append(separator);
             sb.append(distRFCCD1).append(separator);
-            sb.append(distSACCD1);
+            sb.append(distSACCD1).append(separator);
+            sb.append(symDistSACCD1);
             writer.println(sb.toString());
             writer.flush();
         }
