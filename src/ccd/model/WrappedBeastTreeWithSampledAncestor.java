@@ -4,9 +4,12 @@ import beast.base.evolution.tree.Node;
 import beast.base.evolution.tree.Tree;
 import ccd.model.bitsets.BitSet;
 
-public class WrappedBeastTreeSA extends WrappedBeastTree {
+import java.util.ArrayList;
+import java.util.List;
 
-    public WrappedBeastTreeSA(Tree wrappedTree) {
+public class WrappedBeastTreeWithSampledAncestor extends WrappedBeastTree {
+
+    public WrappedBeastTreeWithSampledAncestor(Tree wrappedTree) {
         super(wrappedTree);
     }
 
@@ -50,5 +53,27 @@ public class WrappedBeastTreeSA extends WrappedBeastTree {
                 collectTaxaBits(child, key);
             }
         }
+    }
+
+    public int getNumberOfSampledAncestors() {
+        int numberOfSampledAncestors = 0;
+        List<Node> leaves = wrappedTree.getExternalNodes();
+        for (Node leaf : leaves) {
+            if (leaf.getLength() == 0) {
+                numberOfSampledAncestors++;
+            }
+        }
+        return numberOfSampledAncestors;
+    }
+
+    public ArrayList<Node> getSampledAncestors() {
+        ArrayList<Node> sampledAncestorNodes = new ArrayList<>();
+        List<Node> leaves = wrappedTree.getExternalNodes();
+        for (Node leaf : leaves) {
+            if (leaf.getLength() == 0) {
+                sampledAncestorNodes.add(leaf);
+            }
+        }
+        return sampledAncestorNodes;
     }
 }

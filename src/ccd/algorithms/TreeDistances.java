@@ -2,6 +2,7 @@ package ccd.algorithms;
 
 import beast.base.evolution.tree.Node;
 import ccd.model.WrappedBeastTree;
+import ccd.model.WrappedBeastTreeWithSampledAncestor;
 import ccd.model.bitsets.BitSet;
 
 import java.util.*;
@@ -29,19 +30,7 @@ public class TreeDistances {
         return firstClades.size();
     }
 
-    /**
-     * @param first  tree, assumed to be binary
-     * @param second tree, assumed to be binary
-     * @return
-     */
-    public static int sampledAncestorDistance(WrappedBeastTree first, WrappedBeastTree second) {
-        ArrayList<Node> firstNodes = first.getSampledAncestors();
-        ArrayList<Node> secondNodes = second.getSampledAncestors();
-        firstNodes.removeAll(secondNodes);
-        return firstNodes.size();
-    }
-
-    public static int sampledAncestorSymmetricDistance(WrappedBeastTree first, WrappedBeastTree second) {
+    public static int sampledAncestorSymmetricDistance(WrappedBeastTreeWithSampledAncestor first, WrappedBeastTreeWithSampledAncestor second) {
         ArrayList<Node> firstTreeSANodes = new ArrayList<>(first.getSampledAncestors());
         ArrayList<Node> secondTreeSANodes = new ArrayList<>(second.getSampledAncestors());
 
@@ -52,24 +41,6 @@ public class TreeDistances {
         onlySecond.removeAll(firstTreeSANodes);
 
         return onlyFirst.size() + onlySecond.size();
-    }
-
-    // TODO : there is bug in sampledAncestorNormalizedDistance
-    public static double sampledAncestorNormalizedDistance(WrappedBeastTree first, WrappedBeastTree second) {
-
-        int symDiff = sampledAncestorSymmetricDistance(first, second);
-
-        ArrayList<Node> firstNodes = new ArrayList<>(first.getSampledAncestors());
-        ArrayList<Node> secondNodes = new ArrayList<>(second.getSampledAncestors());
-
-        ArrayList<Node> union = new ArrayList<>(firstNodes);
-        union.addAll(secondNodes);
-
-        if (union.isEmpty()) {
-            return 0.0; // both have no SA events
-        }
-
-        return (double) symDiff / (double) union.size();
     }
 
     /**

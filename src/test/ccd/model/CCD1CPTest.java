@@ -46,14 +46,12 @@ public class CCD1CPTest {
     @Test
     public void distanceTest() {
         List<Tree> trees = sampleTreeList();
-        WrappedBeastTreeSA tree1 = new WrappedBeastTreeSA(trees.get(0));
-        WrappedBeastTreeSA tree2 = new WrappedBeastTreeSA(trees.get(1));
+        WrappedBeastTreeWithSampledAncestor tree1 = new WrappedBeastTreeWithSampledAncestor(trees.get(0));
+        WrappedBeastTreeWithSampledAncestor tree2 = new WrappedBeastTreeWithSampledAncestor(trees.get(1));
         System.out.println("RF distance (SA WrappedBeastTree) = " + TreeDistances.robinsonsFouldDistance(tree1, tree2));
-        System.out.println("SA distance (SA WrappedBeastTree) = " + TreeDistances.sampledAncestorDistance(tree1, tree2));
         WrappedBeastTree tree1NonSA = new WrappedBeastTree(trees.get(0));
         WrappedBeastTree tree2NonSA = new WrappedBeastTree(trees.get(1));
         System.out.println("RF distance (non-SA WrappedBeastTree) = " + TreeDistances.robinsonsFouldDistance(tree1NonSA, tree2NonSA));
-        System.out.println("SA distance (non-SA WrappedBeastTree) = " + TreeDistances.sampledAncestorDistance(tree1NonSA, tree2NonSA));
     }
 
     private static TreeAnnotator.MemoryFriendlyTreeSet sampleTreeSet() throws IOException {

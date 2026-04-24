@@ -44,28 +44,6 @@ public class WrappedBeastTree {
         return cladeAsBitSet;
     }
 
-    public int getNumberOfSampledAncestors() {
-        int numberOfSampledAncestors = 0;
-        List<Node> leaves = wrappedTree.getExternalNodes();
-        for (Node leaf : leaves) {
-            if (leaf.getLength() == 0) {
-                numberOfSampledAncestors++;
-            }
-        }
-        return numberOfSampledAncestors;
-    }
-
-    public ArrayList<Node> getSampledAncestors() {
-        ArrayList<Node> sampledAncestorNodes = new ArrayList<>();
-        List<Node> leaves = wrappedTree.getExternalNodes();
-        for (Node leaf : leaves) {
-            if (leaf.getLength() == 0) {
-                sampledAncestorNodes.add(leaf);
-            }
-        }
-        return sampledAncestorNodes;
-    }
-
     /**
      * Returns the height of the least common ancestor clade of the given clade.
      *
