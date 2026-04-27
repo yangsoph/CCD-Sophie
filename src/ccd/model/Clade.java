@@ -149,7 +149,7 @@ public class Clade {
         this.cladeAsBitSet = cladeInBits;
         this.numTaxaInTree = abstractCCD.leafArraySize;
         this.cladeAsBitSetTaxaOnly = cladeInBits.getSubset(0, numTaxaInTree);
-        this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bit
+        this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bits
         this.parentClades = new ArrayList<Clade>(4);
         this.partitions = new ArrayList<CladePartition>(5);
         this.childClades = new ArrayList<Clade>(8);
@@ -171,9 +171,9 @@ public class Clade {
     public Clade(AbstractCCD abstractCCD) {
         this.ccd = abstractCCD;
         this.numTaxaInTree = abstractCCD.leafArraySize;
-        this.cladeAsBitSet = BitSet.newBitSet(numTaxaInTree + 1);
+        this.cladeAsBitSet = BitSet.newBitSet(numTaxaInTree);
         this.cladeAsBitSetTaxaOnly = BitSet.newBitSet(numTaxaInTree);
-        this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bit
+        this.size = cladeAsBitSetTaxaOnly.cardinality(); // counting #bits set to 1 excluding sampled ancestor bits
         this.parentClades = new ArrayList<Clade>(4);
         this.partitions = new ArrayList<CladePartition>(5);
         this.childClades = new ArrayList<Clade>(8);
@@ -321,41 +321,6 @@ public class Clade {
         for (CladePartition remaining : this.partitions) {
             remaining.setCCP(remaining.getCCP() / sum);
         }
-    }
-
-    /* -- BITSET OPERATIONS -- */
-
-    /**
-     * Adds a taxon to this clade, i.e., sets the bit at the specified index to {@code true}.
-     *
-     * @param index index of the taxon to be set
-     */
-    public void addTaxon(int index) {
-        this.cladeAsBitSet.set(index);
-        this.cladeAsBitSetTaxaOnly.set(index);
-    }
-
-    /**
-     * Adds a range of taxa to this clade,
-     * i.e., sets the bits from the specified {@code fromIndex} (inclusive)
-     * to the specified {@code toIndex} (exclusive) to {@code true}.
-     *
-     * @param fromIndex index of the first taxon to be set
-     * @param toIndex   index after the last taxon to be set
-     */
-    public void addTaxa(int fromIndex, int toIndex) {
-        this.cladeAsBitSet.set(fromIndex, toIndex);
-        this.cladeAsBitSetTaxaOnly.set(fromIndex, toIndex);
-    }
-
-    /**
-     * Removes a taxon from this clade, i.e., sets the bit at the specified index to {@code false}.
-     *
-     * @param index index of the taxon to be cleared
-     */
-    public void removeTaxon(int index) {
-        this.cladeAsBitSet.clear(index);
-        this.cladeAsBitSetTaxaOnly.clear(index);
     }
 
     /* -- STATE MANAGEMENT -- */
@@ -536,10 +501,11 @@ public class Clade {
 
     @Override
     public String toString() {
-        return "Clade [taxa = " + cladeAsBitSetTaxaOnly + ", numOccurrences = " + numOccurrences
-                // + ", ccd = " + ccd
-                + ", num partitions = " + partitions.size()
-                + ", parameter = " + ((parameter < 0) ? getCladeCredibility() : parameter) + "]";
+        return "Clade [taxa = " + cladeAsBitSetTaxaOnly + ", " +
+                ccd.getSampledAncestorInfoString(this) +
+                ", numOccurrences = " + numOccurrences +
+                ", num partitions = " + partitions.size() +
+                ", parameter = " + ((parameter < 0) ? getCladeCredibility() : parameter) + "]";
     }
 
     /**
@@ -981,7 +947,7 @@ public class Clade {
      * @return whether this clade contains the given clade as subclade
      */
     public boolean containsClade(Clade potentialSubclade) {
-        return contains(potentialSubclade.getCladeInBits());
+        return contains(potentialSubclade.getCladeInBitsTaxaOnly());
     }
 
     /**
@@ -991,11 +957,7 @@ public class Clade {
      * @return whether this clade contains the given filter
      */
     public boolean contains(BitSet mask) {
-        BitSet maskWithoutSA = (BitSet) mask.clone();
-        maskWithoutSA.clear(numTaxaInTree);
-        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
-        cladeWithoutSA.clear(numTaxaInTree);
-        return BitSetUtil.contains(cladeWithoutSA, maskWithoutSA);
+        return BitSetUtil.contains(this.cladeAsBitSetTaxaOnly, mask);
     }
 
     /**
@@ -1005,11 +967,7 @@ public class Clade {
      * @return whether this clade is contained in the given BitSet
      */
     public boolean contained(BitSet mask) {
-        BitSet maskWithoutSA = (BitSet) mask.clone();
-        maskWithoutSA.clear(numTaxaInTree);
-        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
-        cladeWithoutSA.clear(numTaxaInTree);
-        return BitSetUtil.contains(maskWithoutSA, cladeWithoutSA);
+        return BitSetUtil.contains(mask, this.cladeAsBitSetTaxaOnly);
     }
 
     /**
@@ -1019,7 +977,7 @@ public class Clade {
      * @return whether this clade intersects the given clade
      */
     public boolean intersects(Clade potentialIntersectedClade) {
-        return this.intersects(potentialIntersectedClade.getCladeInBits());
+        return this.intersects(potentialIntersectedClade.getCladeInBitsTaxaOnly());
     }
 
     /**
@@ -1029,11 +987,7 @@ public class Clade {
      * @return whether this clade intersects the given filter
      */
     public boolean intersects(BitSet mask) {
-        BitSet maskWithoutSA = (BitSet) mask.clone();
-        maskWithoutSA.clear(numTaxaInTree);
-        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
-        cladeWithoutSA.clear(numTaxaInTree);
-        return cladeWithoutSA.intersects(maskWithoutSA);
+        return this.cladeAsBitSetTaxaOnly.intersects(mask);
     }
 
     /**
@@ -1051,20 +1005,6 @@ public class Clade {
     }
 
     /**
-     * Returns whether this clade contains the same taxa as the given BitSet.
-     *
-     * @param mask to be tested if contains the same taxa as this clade
-     * @return whether this clade contains the same taxa as the given filter
-     */
-    public boolean hasSameTaxa(BitSet mask) {
-        BitSet maskWithoutSA = (BitSet) mask.clone();
-        maskWithoutSA.clear(numTaxaInTree);
-        BitSet cladeWithoutSA = (BitSet) this.cladeAsBitSet.clone();
-        cladeWithoutSA.clear(numTaxaInTree);
-        return cladeWithoutSA.equals(maskWithoutSA);
-    }
-
-    /**
      * Returns whether this clade contains the same taxa as the given clade.
      *
      * @param anotherClade to be tested if contains the same taxa as this clade
@@ -1072,6 +1012,16 @@ public class Clade {
      */
     public boolean hasSameTaxa(Clade anotherClade) {
         return this.cladeAsBitSetTaxaOnly.equals(anotherClade.cladeAsBitSetTaxaOnly);
+    }
+
+    /**
+     * Returns whether this clade contains the same taxa as the given BitSet.
+     *
+     * @param mask to be tested if contains the same taxa as this clade
+     * @return whether this clade contains the same taxa as the given filter
+     */
+    public boolean hasSameTaxa(BitSet mask) {
+        return this.cladeAsBitSetTaxaOnly.equals(mask);
     }
 
     /* -- BASE CLADE FOR FILTERED CCDs -- */

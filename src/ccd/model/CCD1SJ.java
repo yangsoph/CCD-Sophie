@@ -366,6 +366,21 @@ public class CCD1SJ extends CCD1 {
     }
 
     @Override
+    protected String getSampledAncestorInfoString(Clade clade) {
+        BitSet bits = clade.getCladeInBits();
+        List<Integer> sampledAncestorTaxa = new ArrayList<>();
+        for (int i = leafArraySize; i < 2 * leafArraySize; i++) {
+            if (bits.get(i)) {
+                sampledAncestorTaxa.add(i - leafArraySize);
+            }
+        }
+        if (sampledAncestorTaxa.isEmpty()) {
+            return "sampled ancestor = none";
+        }
+        return "sampled ancestor taxa = " + sampledAncestorTaxa;
+    }
+
+    @Override
     public AbstractCCD copy() {
         CCD1SJ copy = new CCD1SJ(this.getSizeOfLeavesArray(), false);
         copy.baseTrees.add(this.getSomeBaseTree());

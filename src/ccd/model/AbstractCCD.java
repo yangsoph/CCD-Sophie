@@ -1705,6 +1705,10 @@ public abstract class AbstractCCD implements ITreeDistribution {
                 + ", entropy: " + this.getEntropy() + ", taxa: " + this.getTaxaAsBitSet() + "]";
     }
 
+    protected String getSampledAncestorInfoString(Clade clade) {
+        return "sampled ancestor = none";  // default: no sampled ancestor
+    }
+
     public abstract void initialize();
 
 }
