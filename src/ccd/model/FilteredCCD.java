@@ -2,7 +2,6 @@ package ccd.model;
 
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;
-import ccd.algorithms.sampledAncestor.SampledAncestorModel;
 import ccd.model.bitsets.BitSet;
 
 import java.io.IOException;
@@ -371,13 +370,12 @@ public class FilteredCCD extends AbstractCCD {
     @Override
     public void initialize() {
         if (this.rootCCD instanceof CCD0) {
-            CCD0.setPartitionProbabilities(this.rootClade);
+            ((CCD0) rootCCD).setPartitionProbabilities(rootClade);
             this.probabilitiesDirty = false;
         }
     }
 
     @Override
-    // public void addTree(Tree tree, SampledAncestorModel model) {
     public void addTree(Tree tree) {
         throw new UnsupportedOperationException("Adding trees not supported for filtered CCDs.");
     }

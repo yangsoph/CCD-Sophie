@@ -2,7 +2,6 @@ package ccd.model;
 
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator.TreeSet;
-import ccd.algorithms.sampledAncestor.SampledAncestorModel;
 import ccd.model.bitsets.BitSet;
 
 import java.io.PrintStream;
@@ -112,7 +111,6 @@ public class CCD0 extends AbstractCCD {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
-    // public CCD0(List<Tree> trees, double burnin, SampledAncestorModel model) {
     public CCD0(List<Tree> trees, double burnin) {
         super(trees, burnin);
         initialize();
@@ -126,7 +124,6 @@ public class CCD0 extends AbstractCCD {
      *                whose distribution is approximated by the resulting
      *                {@link CCD0}; all of its trees are used
      */
-    // public CCD0(TreeSet treeSet, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet) {
         this(treeSet, false);
     }
@@ -140,7 +137,6 @@ public class CCD0 extends AbstractCCD {
      *                      {@link CCD0}
      * @param numTreesToUse the number of trees to use from the treeSet
      */
-    // public CCD0(TreeSet treeSet, int numTreesToUse, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, int numTreesToUse) {
         this(treeSet, numTreesToUse, false);
     }
@@ -154,7 +150,6 @@ public class CCD0 extends AbstractCCD {
      *                       {@link CCD0}; all of its trees are used
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
-    // public CCD0(TreeSet treeSet, boolean storeBaseTrees, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, boolean storeBaseTrees) {
         this(treeSet, treeSet.totalTrees - treeSet.burninCount, storeBaseTrees);
     }
@@ -169,7 +164,6 @@ public class CCD0 extends AbstractCCD {
      * @param numTreesToUse  the number of trees to use from the treeSet
      * @param storeBaseTrees whether to store the trees used to create this CCD
      */
-    // public CCD0(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, int numTreesToUse, boolean storeBaseTrees) {
         super(treeSet, numTreesToUse, storeBaseTrees);
         initialize();
@@ -190,7 +184,6 @@ public class CCD0 extends AbstractCCD {
      *                                    and CCD gets reinitialized repeatedly
      *                                    (mutually exclusive with monophyletic clades speedup)
      */
-    // public CCD0(TreeSet treeSet, boolean storeBaseTrees, boolean useMonophyleticCladeSpeedup, boolean updateOnline, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, boolean storeBaseTrees, boolean useMonophyleticCladeSpeedup, boolean updateOnline) {
         super(treeSet, storeBaseTrees);
         if (useMonophyleticCladeSpeedup) {
@@ -212,7 +205,6 @@ public class CCD0 extends AbstractCCD {
      *                           {@link CCD0}
      * @param maxExpansionFactor
      */
-    // public CCD0(TreeSet treeSet, boolean storeBaseTrees, int maxExpansionFactor, SampledAncestorModel model) {
     public CCD0(TreeSet treeSet, boolean storeBaseTrees, int maxExpansionFactor) {
         super(treeSet, storeBaseTrees);
         this.maxExpansionFactor = maxExpansionFactor;
@@ -405,7 +397,7 @@ public class CCD0 extends AbstractCCD {
 
         // 3. clade buckets
         // for easier matching of child clades, we want to group them by size
-        cladeBuckets = processCladeBuckets(clades, leafArraySize);
+        cladeBuckets = processCladeBuckets(clades);
 
         // 4. find missing clade partitions
         done = new HashSet<>();
@@ -453,11 +445,10 @@ public class CCD0 extends AbstractCCD {
      * 2. clades are sorted by first set bit, then last set bit
      * 3. as a side effect, the from[][] and to[][] arrays are initialised
      *
-     * @param clades        set of clades to distribute into clade buckets
-     * @param leafArraySize = maximum clade size
+     * @param clades set of clades to distribute into clade buckets
      * @return clade buckets
      */
-    private List<List<Clade>> processCladeBuckets(List<Clade> clades, int leafArraySize) {
+    protected List<List<Clade>> processCladeBuckets(List<Clade> clades) {
         List<List<Clade>> cladeBuckets = new ArrayList<>(leafArraySize);
 
         // 3.i init clade buckets
@@ -818,7 +809,7 @@ public class CCD0 extends AbstractCCD {
      * @param clade for which the clade partition probabilities are computed
      * @return the sum of this clade's partitions probabilities times its own credibility
      */
-    public static void setPartitionProbabilities(Clade clade) {
+    public void setPartitionProbabilities(Clade clade) {
         setPartitionProbabilities(clade, !USE_CLADE_PARAMETERS);
     }
 
@@ -831,7 +822,7 @@ public class CCD0 extends AbstractCCD {
      * @param useCladeParameters whether to use the clade parameters or the clade credibilities
      * @return the sum of this clade's partitions probabilities times its own credibility
      */
-    public static double setPartitionProbabilities(Clade clade, boolean useCladeParameters) {
+    public double setPartitionProbabilities(Clade clade, boolean useCladeParameters) {
         if (clade.getSumCladeCredibilities() > 0) {
             return clade.getSumCladeCredibilities();
         }
@@ -839,19 +830,17 @@ public class CCD0 extends AbstractCCD {
         double cladeValue = useCladeParameters ? clade.getCladeParameter() : clade.getCladeCredibility();
 
         if (clade.isLeaf()) {
-            // a leaf has no partition, sum of probabilities is 1 (when there is no sampled ancestor)
-            // clade.setSumCladeCredibilities(1);
+            // a leaf has no partition, sum of probabilities is 1
+            clade.setSumCladeCredibilities(1);
+            return 1.0;
+        } else if (clade.isCherry()) {
+            // a cherry has only one partition
+            if (clade.partitions.isEmpty()) {
+                throw new AssertionError("Cherry should contain a clade split.");
+            }
+            clade.partitions.get(0).setCCP(1);
             clade.setSumCladeCredibilities(cladeValue);
-            // return 1.0;
             return cladeValue;
-            // } else if (clade.isCherry()) {
-            //     // a cherry has only one partition (when there is no sampled ancestor)
-            //     if (clade.partitions.isEmpty()) {
-            //         throw new AssertionError("Cherry should contain a clade split.");
-            //     }
-            //     clade.partitions.get(0).setCCP(1);
-            //     clade.setSumCladeCredibilities(cladeValue);
-            //     return cladeValue;
         } else {
             // other might have more partitions
             double sumSubtreeProbabilities = 0.0;

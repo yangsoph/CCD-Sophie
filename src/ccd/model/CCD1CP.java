@@ -89,7 +89,7 @@ public class CCD1CP extends CCD1 {
         key.or(secondChildClade.getCladeInBits());
         return key;
     }
-
+    
     /**
      * @return whether this clade is marked as a sampled ancestor
      */

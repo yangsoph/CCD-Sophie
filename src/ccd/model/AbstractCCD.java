@@ -141,7 +141,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
             treesToUse = new ArrayList<Tree>(numUsedTrees);
             treesToUse.addAll(trees.subList(numDiscardedTrees, trees.size()));
         }
-
+        // initializeRootClade(treesToUse.get(0).getLeafNodeCount());
         for (Tree tree : treesToUse) {
             cladifyTree(tree);
         }
@@ -515,7 +515,7 @@ public abstract class AbstractCCD implements ITreeDistribution {
     public boolean isSampledAncestor(Clade clade) {
         return false; // default AbstractCCD is not a sampled ancestor model
     }
-
+    
     /**
      * @return number of leaves/taxa of the trees this CCD is build on (which
      * might be less than the taxa existing in this CCD, namely, if it

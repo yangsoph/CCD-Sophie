@@ -77,6 +77,10 @@ public class CCD1CPTest {
         List<Tree> trees = sampleTreeList();
         CCD1CP cp = new CCD1CP(trees, 0.0);
 
+        for (Clade clade : cp.getClades()) {
+            System.out.println(clade);
+        }
+
         double p1 = cp.getProbabilityOfTree(trees.get(0));
         double p2 = cp.getProbabilityOfTree(trees.get(1));
         double p3 = cp.getProbabilityOfTree(trees.get(2));

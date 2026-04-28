@@ -5,7 +5,6 @@ import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.regularisation.CCD1Regularisor;
 import ccd.algorithms.regularisation.CCDRegularisationStrategy;
 import ccd.algorithms.regularisation.RegCCDParameterOptimiser;
-import ccd.algorithms.sampledAncestor.SampledAncestorModel;
 import org.apache.commons.math3.analysis.UnivariateFunction;
 
 import java.util.List;
@@ -30,9 +29,6 @@ public class OptRegCCD extends RegCCD {
      * @param burnin value between 0 and 1 of what percentage of the given trees
      *               should be discarded as burn-in
      */
-    // public OptRegCCD(List<Tree> trees, double burnin, SampledAncestorModel model) {
-    //     super(trees, burnin, model);
-    // }
     public OptRegCCD(List<Tree> trees, double burnin) {
         super(trees, burnin);
     }
@@ -45,9 +41,6 @@ public class OptRegCCD extends RegCCD {
      *                whose distribution is approximated by the resulting
      *                {@link OptRegCCD}; all of its trees are used
      */
-    // public OptRegCCD(TreeAnnotator.TreeSet treeSet, SampledAncestorModel model) {
-    //     super(treeSet, model);
-    // }
     public OptRegCCD(TreeAnnotator.TreeSet treeSet) {
         super(treeSet);
     }
