@@ -5,6 +5,7 @@ import beast.base.evolution.tree.TreeParser;
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.model.CCD0;
 import ccd.model.CCD0CP;
+import ccd.model.Clade;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CCD0Test {
 
@@ -58,4 +60,28 @@ public class CCD0Test {
         double p1 = ccd.getProbabilityOfTree(treeList.get(0));
         System.out.println("p1 = " + p1);
     }
+
+    /**
+     * The {@link ccd.model.AbstractCCD#AbstractCCD(List, double)} constructor
+     * has two branches; the {@code burnin == 0} branch must still set
+     * {@code numBaseTrees} so {@link Clade#getCladeCredibility()} is finite.
+     * Before the fix, {@code burnin == 0} left {@code numBaseTrees = 0}, so
+     * {@code numOccurrences / 0 = Infinity} for every clade and the CCD0
+     * constructor blew up with NaN inside {@code setPartitionProbabilities}.
+     */
+    @Test
+    public void testZeroBurninSetsBaseTreeCount() {
+        List<Tree> trees = new ArrayList<>();
+        trees.add(parse("((A:1,B:1):1,(C:1,D:1):1):0;"));
+        trees.add(parse("((A:1,C:1):1,(B:1,D:1):1):0;"));
+
+        CCD0 ccd = new CCD0(trees, 0.0);
+
+        assertEquals(trees.size(), ccd.getNumberOfBaseTrees());
+        for (Clade c : ccd.getClades()) {
+            double cred = c.getCladeCredibility();
+            assertTrue(Double.isFinite(cred), "clade credibility must be finite, got " + cred + " for " + c);
+        }
+    }
+
 }
