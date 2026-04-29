@@ -6,6 +6,7 @@ import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.model.CCD0;
 import ccd.model.CCD0CP;
 import ccd.model.Clade;
+import ccd.model.CladePartition;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -84,4 +85,41 @@ public class CCD0Test {
         }
     }
 
+    /**
+     * Drives CCD0.setPartitionProbabilities into its log-sum-exp underflow
+     * branch (CCD0.java:860 "if (sumSubtreeProbabilities == 0)") and checks
+     * that the resulting partition CCPs are normalised. With the sign error
+     * at CCD0.java:894 (logSum = logMax - log(intermSum), should be +) the
+     * CCPs of the root's two partitions come out as 2.0 each instead of 0.5,
+     * so they sum to 4.0 rather than 1.0.
+     *
+     * Setup: two 4-taxon trees that disagree on the root split, giving the
+     * root clade two partitions: {A,B}|{C,D} and {A,C}|{B,D}. Setting every
+     * non-leaf clade's parameter to 1e-200 makes each partition's product
+     * (1e-200 * 1e-200 = 1e-400) underflow to exactly 0, so the sum is 0 and
+     * the underflow branch fires.
+     */
+    @Test
+    public void testRootPartitionCCPsNormaliseUnderUnderflow() {
+        List<Tree> trees = new ArrayList<>();
+        trees.add(parse("((A:1,B:1):1,(C:1,D:1):1):0;"));
+        trees.add(parse("((A:1,C:1):1,(B:1,D:1):1):0;"));
+
+        CCD0 ccd = new CCD0(trees, 0.0);
+
+        for (Clade clade : ccd.getClades()) {
+            if (!clade.isLeaf()) {
+                clade.setCladeParameter(1e-200);
+            }
+        }
+        ccd.resetSumCladeCredibilities();
+        ccd.setPartitionProbabilities(ccd.getRootClade(), true);
+
+        double ccpSum = 0.0;
+        for (CladePartition p : ccd.getRootClade().getPartitions()) {
+            ccpSum += p.getCCP();
+        }
+
+        assertEquals(1.0, ccpSum, 1e-9);
+    }
 }
