@@ -266,10 +266,17 @@ final class SJSupport {
     /**
      * Builds a tree under the SJ identity: pick a root variant via the
      * placeholder root's {@code (variant, emptyClade)} partitions, then
-     * recursively pick partitions on the variant's subtree. Heights are
+     * recursively pick partitions on the variant's subtree.
+     *
+     * <p><b>TODO — height strategy not yet supported.</b> Heights are always
      * assigned with the "One" semantics (parent = max(child) + 1, SA leaves
-     * get parent height for branch length zero); the {@code heightStrategy}
-     * argument is currently ignored — see {@link CCD0SJ} for the limitation.
+     * get parent height for branch length zero), regardless of the
+     * {@code heightStrategy} argument. Implementing
+     * {@code MeanOccurredHeights} / {@code CommonAncestorHeights} correctly
+     * under SJ requires per-SA-context height stats: a leaf can appear as
+     * an SA child in some trees and a non-SA child in others, and
+     * {@link Clade#getMeanOccurredHeight()} averages over both, which is
+     * the wrong number whichever way you use it.
      */
     static Tree buildTree(AbstractCCD ccd, Clade emptyClade,
                           SamplingStrategy samplingStrategy, HeightSettingStrategy heightStrategy) {

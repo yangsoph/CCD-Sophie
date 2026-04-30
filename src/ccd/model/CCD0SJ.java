@@ -199,14 +199,10 @@ public class CCD0SJ extends CCD0 {
     /* -- SAMPLING & MAP -- */
 
     /**
-     * Builds a tree under the SJ identity. <b>Height limitation:</b> only
-     * the "One" assignment is implemented (parent height = max(child) + 1,
-     * SA leaves get parent height for branch length zero). The
-     * {@code heightStrategy} argument is currently ignored; callers
-     * requesting {@code MeanOccurredHeights} or
-     * {@code CommonAncestorHeights} get the "One" semantics instead.
-     * Tracking and assigning real heights for SJ extended clades is future
-     * work.
+     * Builds a tree under the SJ identity. The {@code heightStrategy}
+     * argument is currently ignored — see
+     * {@link SJSupport#buildTree(AbstractCCD, Clade, SamplingStrategy, HeightSettingStrategy)}
+     * for the TODO and the reason.
      */
     @Override
     protected Tree getTreeBasedOnStrategy(SamplingStrategy samplingStrategy,
