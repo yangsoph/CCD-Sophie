@@ -884,14 +884,14 @@ public class CCD0 extends AbstractCCD {
                     i++;
                 }
 
-                // log sum = log pMax - log( sum exp(log pi - logMax))
+                // log(Σ exp(xᵢ)) = max + log(Σ exp(xᵢ - max))
                 double intermSum = 0;
                 for (int j = 0; j < logProbs.length; j++) {
                     if (Double.isFinite(logProbs[j])) {
                         intermSum += Math.exp(logProbs[j] - logMax);
                     }
                 }
-                double logSum = logMax - Math.log(intermSum);
+                double logSum = logMax + Math.log(intermSum);
 
                 // normalizing with normalized log pi = log pi - log sum
                 i = 0;
