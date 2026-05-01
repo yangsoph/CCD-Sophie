@@ -22,7 +22,11 @@ public class PointEstSampledAncestor {
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
 
-        // header
+        // header. RF_dist and sym_SA_dist preserved for backward compatibility
+        // with existing analysis scripts. topoRF_dist and SA_RF_dist are the
+        // new columns: pure topology RF (taxa-only, halved) and the proper
+        // sampled-ancestor RF defined in the paper (full symmetric difference
+        // of cuttable clade sets).
         String separator = ",";
         StringBuilder sb = new StringBuilder();
         sb.append("rep").append(separator);
@@ -30,7 +34,9 @@ public class PointEstSampledAncestor {
         sb.append("numSA_in_CCD1map").append(separator);
         sb.append("numSA_in_truth").append(separator);
         sb.append("RF_dist").append(separator);
-        sb.append("sym_SA_dist");
+        sb.append("sym_SA_dist").append(separator);
+        sb.append("topoRF_dist").append(separator);
+        sb.append("SA_RF_dist");
         writer.println(sb.toString());
         writer.flush();
 
@@ -55,6 +61,8 @@ public class PointEstSampledAncestor {
             int numSACCD1Truth = trueTree.getNumberOfSampledAncestors();
             int distRFCCD1 = TreeDistances.robinsonsFouldDistance(trueTree, mapTreeCCD1);
             double symDistSACCD1 = TreeDistances.sampledAncestorSymmetricDistance(trueTree, mapTreeCCD1);
+            int distTopoRFCCD1 = TreeDistances.topologyRobinsonFoulds(trueTree, mapTreeCCD1);
+            int distSARFCCD1 = TreeDistances.sampledAncestorRobinsonFoulds(trueTree, mapTreeCCD1);
 
             sb = new StringBuilder();
             sb.append(i).append(separator);
@@ -62,7 +70,9 @@ public class PointEstSampledAncestor {
             sb.append(numSACCD1MAP).append(separator);
             sb.append(numSACCD1Truth).append(separator);
             sb.append(distRFCCD1).append(separator);
-            sb.append(symDistSACCD1);
+            sb.append(symDistSACCD1).append(separator);
+            sb.append(distTopoRFCCD1).append(separator);
+            sb.append(distSARFCCD1);
             writer.println(sb.toString());
             writer.flush();
         }
