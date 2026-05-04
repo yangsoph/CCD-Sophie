@@ -107,6 +107,9 @@ public class WrappedBeastTree {
         return false;
     }
 
+    /**
+     * @return A list of clades bitSet, excluding leaves, including root
+     */
     public ArrayList<BitSet> getNontrivialClades() {
         ArrayList<BitSet> clades = new ArrayList<>();
         for (int i = wrappedTree.getLeafNodeCount(); i < wrappedTree.getNodeCount(); i++) {

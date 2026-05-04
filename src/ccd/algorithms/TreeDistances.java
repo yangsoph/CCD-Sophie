@@ -24,6 +24,9 @@ public class TreeDistances {
      * @return the RF distance (divided by 2) for the two given trees
      */
     public static int robinsonsFouldDistance(WrappedBeastTree first, WrappedBeastTree second) {
+        // if input trees are of type WrappedBeastTreeWithSampledAncestor,
+        // clades with the same taxa but different SA info would be identified as different clades,
+        // therefore increase the distance
         ArrayList<BitSet> firstClades = first.getNontrivialClades();
         ArrayList<BitSet> secondClades = second.getNontrivialClades();
         firstClades.removeAll(secondClades);
@@ -128,7 +131,7 @@ public class TreeDistances {
      * so this is half the symmetric difference.
      */
     public static int topologyRobinsonFoulds(WrappedBeastTreeWithSampledAncestor first,
-                                              WrappedBeastTreeWithSampledAncestor second) {
+                                             WrappedBeastTreeWithSampledAncestor second) {
         int n = first.getWrappedTree().getLeafNodeCount();
         if (second.getWrappedTree().getLeafNodeCount() != n) {
             throw new IllegalArgumentException(

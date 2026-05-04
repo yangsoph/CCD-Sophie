@@ -33,71 +33,21 @@ public class CCD1CP extends CCD1 {
     /* -- ROOT INITIALIZATION -- */
     @Override
     protected void initializeRootClade(int numLeaves) {
-        this.leafArraySize = numLeaves;
-
-        BitSet rootBitSet = BitSet.newBitSet(leafArraySize + 1);
-        rootBitSet.set(0, numLeaves + 1); // root cannot be a sampled ancestor, so index numLeaves is set to 1
-
-        this.rootClade = new Clade(rootBitSet, this);
-        cladeMapping.put(rootClade.getCladeInBits(), rootClade);
+        CPSupport.initializeRoot(this, numLeaves);
     }
 
     /* -- TREE INSERTION -- */
     @Override
     protected Clade cladifyVertex(Node vertex) {
-        if (vertex.isLeaf()) {
-            BitSet leafKey = leafKey(vertex);
-            Clade leafClade = cladeMapping.get(leafKey);
-            if (leafClade == null) {
-                leafClade = addNewClade(leafKey);
-            }
-            leafClade.increaseOccurrenceCount(vertex.getHeight());
-            return leafClade;
-        }
-
-        Clade firstChildClade = cladifyVertex(vertex.getChildren().get(0));
-        Clade secondChildClade = cladifyVertex(vertex.getChildren().get(1));
-
-        BitSet selfKey = extendedSelfKey(firstChildClade, secondChildClade);
-        Clade currentClade = cladeMapping.get(selfKey);
-        if (currentClade == null) {
-            currentClade = addNewClade(selfKey);
-        }
-        currentClade.increaseOccurrenceCount(vertex.getHeight());
-
-        CladePartition currentPartition = currentClade.getCladePartition(firstChildClade, secondChildClade);
-        if (currentPartition == null) {
-            currentPartition = currentClade.createCladePartition(firstChildClade, secondChildClade);
-        }
-        currentPartition.increaseOccurrenceCount(vertex.getHeight());
-
-        return currentClade;
+        return CPSupport.cladifyVertex(this, vertex);
     }
 
-    private BitSet leafKey(Node vertex) {
-        BitSet key = BitSet.newBitSet(leafArraySize + 1);
-        key.set(vertex.getNr());
-        if (vertex.getLength() != 0) {
-            key.set(leafArraySize);
-        }
-        return key;
-    }
-
-    private BitSet extendedSelfKey(Clade firstChildClade, Clade secondChildClade) {
-        BitSet key = BitSet.newBitSet(leafArraySize + 1);
-        key.or(firstChildClade.getCladeInBits());
-        key.or(secondChildClade.getCladeInBits());
-        return key;
-    }
-    
     /**
      * @return whether this clade is marked as a sampled ancestor
      */
     @Override
     public boolean isSampledAncestor(Clade clade) {
-        // the last bit, i.e. at index = number of taxa is SA flag
-        // Note: we use 0 to represent SA, and 1 to represent non-SA
-        return !clade.getCladeInBits().get(leafArraySize);
+        return CPSupport.isSampledAncestor(clade, leafArraySize);
     }
 
     /* -- SAMPLING & MAP -- */
@@ -123,108 +73,17 @@ public class CCD1CP extends CCD1 {
 
     @Override
     protected Clade reduceCladeCount(Node vertex) {
-        BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1);
-
-        if (vertex.isLeaf()) {
-            BitSet leafKey = leafKey(vertex);
-            Clade leafClade = cladeMapping.get(leafKey);
-            leafClade.decreaseOccurrenceCount(vertex.getHeight());
-            return leafClade;
-        }
-
-        Clade firstChildClade = reduceCladeCount(vertex.getChildren().get(0));
-        Clade secondChildClade = reduceCladeCount(vertex.getChildren().get(1));
-
-        BitSet selfKey = extendedSelfKey(firstChildClade, secondChildClade);
-
-        // retrieve clade and reduce count
-        Clade currentClade = cladeMapping.get(selfKey);
-        currentClade.decreaseOccurrenceCount(vertex.getHeight());
-
-        // reduce counts for its clade partitions
-        CladePartition currentPartition = currentClade.getCladePartition(firstChildClade, secondChildClade);
-        currentPartition.decreaseOccurrenceCount(vertex.getHeight());
-
-        removeCladePartitionIfNecessary(currentClade, currentPartition);
-
-        return currentClade;
+        return CPSupport.reduceCladeCount(this, vertex, leafArraySize);
     }
-
-    // public int getNumberOfSampledAncestorTaxa() {
-    //     int count = 0;
-    //     for (Clade clade : this.getClades()) {
-    //         if (clade.isSampledAncestor()) {
-    //             count++;
-    //         }
-    //     }
-    //     return count;
-    // }
 
     @Override
     protected BitSet computeCladeToNodeMapping(Node vertex, Map<Clade, Node> map) {
-        BitSet bits;
-        if (vertex.isLeaf()) {
-            bits = leafKey(vertex);
-        } else {
-            bits = computeCladeToNodeMapping(vertex.getLeft(), map);
-            BitSet otherBits = computeCladeToNodeMapping(vertex.getRight(), map);
-            bits.or(otherBits);
-        }
-
-        Clade clade = getClade(bits);
-        if (clade == null) {
-            System.err.println("No clade found in CCD for this vertex (" + bits + ").");
-        }
-        map.put(clade, vertex);
-
-        return bits;
+        return CPSupport.computeCladeToNodeMapping(vertex, map, this, leafArraySize);
     }
 
     @Override
     protected Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog) {
-        if (vertex.isLeaf()) {
-            // set bitSet
-            BitSet leafKey = leafKey(vertex);
-            Clade leafClade = cladeMapping.get(leafKey);
-
-            // probability of the leaf
-            if (computeLog) {
-                runningProbability[0] += leafClade.getLogProbability();
-            } else {
-                runningProbability[0] *= leafClade.getProbability();
-            }
-            return leafClade;
-        }
-
-        Clade firstChildClade = computeProbabilityOfVertex(vertex.getChildren().get(0), runningProbability, computeLog);
-        Clade secondChildClade = computeProbabilityOfVertex(vertex.getChildren().get(1), runningProbability, computeLog);
-
-        if (computeLog && runningProbability[0] > 0) {
-            return null;
-        }
-
-        if ((firstChildClade == null) || (secondChildClade == null)) {
-            setComputedNoProbability(runningProbability, computeLog);
-            return null;
-        }
-
-        BitSet selfKey = extendedSelfKey(firstChildClade, secondChildClade);
-        Clade currentClade = cladeMapping.get(selfKey);
-        if (currentClade != null) {
-            CladePartition partition = currentClade.getCladePartition(firstChildClade, secondChildClade);
-            if (partition != null) {
-                if (computeLog) {
-                    runningProbability[0] += partition.getLogCCP();
-                } else {
-                    runningProbability[0] *= partition.getCCP();
-                }
-            } else {
-                setComputedNoProbability(runningProbability, computeLog);
-            }
-        } else {
-            setComputedNoProbability(runningProbability, computeLog);
-        }
-        return currentClade;
+        return CPSupport.computeProbabilityOfVertex(vertex, runningProbability, computeLog, this, leafArraySize);
     }
 
     /* -- MISC -- */
@@ -235,9 +94,7 @@ public class CCD1CP extends CCD1 {
 
     @Override
     protected String getSampledAncestorInfoString(Clade clade) {
-        BitSet bits = clade.getCladeInBits();
-        boolean isNonSA = bits.get(leafArraySize);
-        return isNonSA ? "sampled ancestor = false" : "sampled ancestor = true";
+        return CPSupport.saInfoString(clade, leafArraySize);
     }
 
     @Override
