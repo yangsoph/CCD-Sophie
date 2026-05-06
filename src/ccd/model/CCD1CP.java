@@ -54,19 +54,7 @@ public class CCD1CP extends CCD1 {
 
     @Override
     protected double computeParentHeight(CladePartition partition, Node firstChild, Node secondChild) {
-        if (isSampledAncestorPartition(partition)) {
-            return Math.max(firstChild.getHeight(), secondChild.getHeight());
-        } else {
-            return Math.max(firstChild.getHeight(), secondChild.getHeight()) + 1.0;
-        }
-    }
-
-    /**
-     * @return whether one of the children is a sampled ancestor
-     */
-    protected boolean isSampledAncestorPartition(CladePartition partition) {
-        return isSampledAncestor(partition.getChildClades()[0]) ||
-                isSampledAncestor(partition.getChildClades()[1]);
+        return CPSupport.computeParentHeight(partition, firstChild, secondChild, leafArraySize);
     }
 
     /* -- HELPER METHODS -- */

@@ -1,10 +1,10 @@
 package test.ccd.model;
 
+import beast.base.evolution.tree.Node;
 import beast.base.evolution.tree.Tree;
 import beast.base.evolution.tree.TreeParser;
-import ccd.model.CCD0;
-import ccd.model.CCD0SJ;
-import ccd.model.CladePartition;
+import beastfx.app.inputeditor.BeautiPanelConfig;
+import ccd.model.*;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * scored by the product of child clade-frequencies; with the JS-style expand
  * step ({@link CCD0SJ#expand()}) one new root-level partition
  * ({A,B}-noSA, {C,D}-noSA) is added, plus two new partitions on
- * {A,B,C}-SAonC pairing C with the SA-flagged {A,B} cherries.
+ * {A,B,C}-SA on C pairing C with the SA-flagged {A,B} cherries.
  *
  * <p>Resulting tree probabilities:
  * <pre>
@@ -57,18 +57,63 @@ public class CCD0SJTest {
         return trees;
     }
 
+    private static List<Tree> unsampleTrees() {
+        List<Tree> trees = new ArrayList<>();
+        trees.add(parse("((A:1,B:1):1,(C:1,D:1):1):0;"));
+        trees.add(parse("(((A:0,B:1):1,C:0):1,D:1):0;"));
+        trees.add(parse("(((A:1,B:0):1,C:0):1,D:1):0;"));
+        return trees;
+    }
+
     @Test
     public void testCCD0SJProbabilities() {
         List<Tree> trees = sampleTrees();
         CCD0SJ ccd = new CCD0SJ(trees, 0.0);
 
+        for (Clade clade : ccd.getClades()) {
+            System.out.println(clade);
+            for (CladePartition p : clade.getPartitions()) {
+                System.out.println(p);
+            }
+        }
+
         double p1 = ccd.getProbabilityOfTree(trees.get(0));
         double p2 = ccd.getProbabilityOfTree(trees.get(1));
         double p3 = ccd.getProbabilityOfTree(trees.get(2));
 
+        System.out.println("p1 = " + p1);
+
         assertEquals(2.0 / 9.0, p1, 1e-9, "P(Tree 1)");
         assertEquals(2.0 / 9.0, p2, 1e-9, "P(Tree 2)");
         assertEquals(1.0 / 9.0, p3, 1e-9, "P(Tree 3)");
+    }
+
+    @Test
+    public void testCCD0CPProbabilities() {
+        List<Tree> trees = sampleTrees();
+        List<Tree> unsampledTrees = unsampleTrees();
+        CCD0CP ccd = new CCD0CP(trees, 0.0);
+        for (Clade clade : ccd.getClades()) {
+            System.out.println(clade);
+            for (CladePartition p : clade.getPartitions()) {
+                System.out.println(p);
+            }
+        }
+        double p1 = ccd.getProbabilityOfTree(trees.get(0));
+        double p2 = ccd.getProbabilityOfTree(trees.get(1));
+        double p3 = ccd.getProbabilityOfTree(trees.get(2));
+        double p4 = ccd.getProbabilityOfTree(unsampledTrees.get(0));
+        double p5 = ccd.getProbabilityOfTree(unsampledTrees.get(1));
+        double p6 = ccd.getProbabilityOfTree(unsampledTrees.get(2));
+        assertEquals(2.0 / 9.0, p1, 1e-9, "P(Tree 1)");
+        assertEquals(2.0 / 9.0, p2, 1e-9, "P(Tree 2)");
+        assertEquals(1.0 / 9.0, p3, 1e-9, "P(Tree 3)");
+        System.out.println("p1 = " + p1);
+        System.out.println("unsampled 1 = " + p4);
+        System.out.println("unsampled 2 = " + p5);
+        System.out.println("unsampled 3 = " + p6);
+        double sum = p1 + p2 + p3 + p4 + p5 + p6;
+        System.out.println("all trees prob sum = " + sum);
     }
 
     @Test

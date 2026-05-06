@@ -18,21 +18,21 @@ public class SmallTreeSetTest {
 
         String dataPath = "/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/example_trees/" + name;
         TreeAnnotator.MemoryFriendlyTreeSet treeSet = new TreeAnnotator().new MemoryFriendlyTreeSet(dataPath, 0);
-        CCD1CP ccd = new CCD1CP(treeSet, false);
-        WrappedBeastTree mapTreeCCD1 = new WrappedBeastTree(ccd.getMAPTree());
+        CCD0CP ccd = new CCD0CP(treeSet, false);
+        WrappedBeastTree mapTree = new WrappedBeastTree(ccd.getMAPTree());
         List<Tree> trees = new ArrayList<>();
-        trees.add(mapTreeCCD1.getWrappedTree());
-        File treeFile = new File("/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/example_trees/map_" + name);
+        trees.add(mapTree.getWrappedTree());
+        File treeFile = new File("/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/example_trees/ccd0_map_" + name);
         storeTrees(trees, treeFile);
         System.out.println("CCD MAP tree log prob = " + ccd.getMaxLogTreeProbability());
         System.out.println("entropy = " + ccd.getEntropy());
-        for (Clade clade : ccd.getClades()) {
-            System.out.println(clade);
-            System.out.println(clade.getCladeInBits());
-            System.out.println(ccd.isSampledAncestor(clade));
-            for (CladePartition partition : clade.getPartitions()) {
-                System.out.println(partition);
-            }
-        }
+        // for (Clade clade : ccd.getClades()) {
+        //     System.out.println(clade);
+        //     System.out.println(clade.getCladeInBits());
+        //     System.out.println(ccd.isSampledAncestor(clade));
+        //     for (CladePartition partition : clade.getPartitions()) {
+        //         System.out.println(partition);
+        //     }
+        // }
     }
 }

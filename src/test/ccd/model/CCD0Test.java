@@ -3,10 +3,7 @@ package test.ccd.model;
 import beast.base.evolution.tree.Tree;
 import beast.base.evolution.tree.TreeParser;
 import beastfx.app.treeannotator.TreeAnnotator;
-import ccd.model.CCD0;
-import ccd.model.CCD0CP;
-import ccd.model.Clade;
-import ccd.model.CladePartition;
+import ccd.model.*;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -49,6 +46,12 @@ public class CCD0Test {
         List<Tree> treeList = sampledTreeList();
         TreeAnnotator.MemoryFriendlyTreeSet treeSet = sampledTreeSet();
         CCD0 ccd = new CCD0(treeSet);
+        for (Clade clade : ccd.getClades()) {
+            System.out.println(clade);
+            for (CladePartition p : clade.getPartitions()) {
+                System.out.println(p);
+            }
+        }
         double p1 = ccd.getProbabilityOfTree(treeList.get(0));
         System.out.println("p1 = " + p1);
     }
@@ -58,6 +61,21 @@ public class CCD0Test {
         List<Tree> treeList = sampledTreeList();
         TreeAnnotator.MemoryFriendlyTreeSet treeSet = sampledTreeSet();
         CCD0CP ccd = new CCD0CP(treeSet);
+        for (Clade clade : ccd.getClades()) {
+            System.out.println(clade);
+            for (CladePartition p : clade.getPartitions()) {
+                System.out.println(p);
+            }
+        }
+        double p1 = ccd.getProbabilityOfTree(treeList.get(0));
+        System.out.println("p1 = " + p1);
+    }
+
+    @Test
+    public void testCCD0SJ() throws IOException {
+        List<Tree> treeList = sampledTreeList();
+        TreeAnnotator.MemoryFriendlyTreeSet treeSet = sampledTreeSet();
+        CCD0SJ ccd = new CCD0SJ(treeSet);
         double p1 = ccd.getProbabilityOfTree(treeList.get(0));
         System.out.println("p1 = " + p1);
     }
@@ -92,7 +110,7 @@ public class CCD0Test {
      * at CCD0.java:894 (logSum = logMax - log(intermSum), should be +) the
      * CCPs of the root's two partitions come out as 2.0 each instead of 0.5,
      * so they sum to 4.0 rather than 1.0.
-     *
+     * <p>
      * Setup: two 4-taxon trees that disagree on the root split, giving the
      * root clade two partitions: {A,B}|{C,D} and {A,C}|{B,D}. Setting every
      * non-leaf clade's parameter to 1e-200 makes each partition's product

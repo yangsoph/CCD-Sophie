@@ -75,6 +75,19 @@ final class CPSupport {
         return !clade.getCladeInBits().get(leafArraySize);
     }
 
+    static double computeParentHeight(CladePartition partition, Node firstChild, Node secondChild, int leafArraySize) {
+        if (isSampledAncestorPartition(partition, leafArraySize)) {
+            return Math.max(firstChild.getHeight(), secondChild.getHeight());
+        } else {
+            return Math.max(firstChild.getHeight(), secondChild.getHeight()) + 1.0;
+        }
+    }
+
+    static boolean isSampledAncestorPartition(CladePartition partition, int leafArraySize) {
+        return isSampledAncestor(partition.getChildClades()[0], leafArraySize) ||
+                isSampledAncestor(partition.getChildClades()[1], leafArraySize);
+    }
+
     static Clade reduceCladeCount(AbstractCCD ccd, Node vertex, int leafArraySize) {
         BitSet cladeInBits = BitSet.newBitSet(extendedBitWidth(leafArraySize));
 
