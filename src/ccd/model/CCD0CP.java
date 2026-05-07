@@ -198,46 +198,6 @@ public class CCD0CP extends CCD0 {
         }
     }
 
-    // @Override
-    // public double setPartitionProbabilities(Clade clade, boolean useCladeParameters) {
-    //
-    //     if (clade.getSumCladeCredibilities() > 0) {
-    //         return clade.getSumCladeCredibilities();
-    //     }
-    //
-    //     double cladeValue = useCladeParameters ? clade.getCladeParameter() : clade.getCladeCredibility();
-    //
-    //     // Leaf: still trivial, bcs all leaves, SA or not, all have probability 1 locally
-    //     if (clade.isLeaf()) {
-    //         clade.setSumCladeCredibilities(1.0);
-    //         return 1.0;
-    //     }
-    //
-    //     // NO special cherry case, bcs cherry is not trivial anymore
-    //
-    //     double totalOccurrences = clade.getNumberOfOccurrences();
-    //     double sumSubtreeProbabilities = 0.0;
-    //
-    //     for (CladePartition partition : clade.getPartitions()) {
-    //
-    //         // --- CP normalization ---
-    //         double occ = partition.getNumberOfOccurrences();
-    //         double ccp = (totalOccurrences == 0) ? 0.0 : occ / totalOccurrences;
-    //         partition.setCCP(ccp);
-    //
-    //         // --- recurse ---
-    //         double left = setPartitionProbabilities(partition.getChildClades()[0], useCladeParameters);
-    //         double right = setPartitionProbabilities(partition.getChildClades()[1], useCladeParameters);
-    //
-    //         sumSubtreeProbabilities += ccp * left * right;
-    //     }
-    //
-    //     double sumCladeCredibilities = sumSubtreeProbabilities * cladeValue;
-    //     clade.setSumCladeCredibilities(sumCladeCredibilities);
-    //
-    //     return sumCladeCredibilities;
-    // }
-
     @Override
     public String toString() {
         return "CCD0-CP " + super.toString().replaceFirst("CCD0 ", "");

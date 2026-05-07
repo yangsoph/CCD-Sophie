@@ -17,7 +17,7 @@ public class PointEstSampledAncestor {
     public static void main(String[] args) throws IOException {
 
         // String outputPathName = "/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/experiment/local_test.csv";
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_numSA_pointEst_CCD0SJ.csv";
+        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_numSA_pointEst_CCD0CP.csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -53,8 +53,8 @@ public class PointEstSampledAncestor {
             WrappedBeastTreeWithSampledAncestor trueTree = new WrappedBeastTreeWithSampledAncestor(trueTreeSet.next());
             int numTaxa = trueTree.getWrappedTree().getLeafNodeCount();
 
-            // CCD0CP ccd = new CCD0CP(treeSet, false);
-            CCD0SJ ccd = new CCD0SJ(treeSet, false);
+            CCD0CP ccd = new CCD0CP(treeSet, false);
+            // CCD0SJ ccd = new CCD0SJ(treeSet, false);
             WrappedBeastTreeWithSampledAncestor mapTreeCCD = new WrappedBeastTreeWithSampledAncestor(ccd.getMAPTree());
 
             int numSACCDMAP = mapTreeCCD.getNumberOfSampledAncestors();

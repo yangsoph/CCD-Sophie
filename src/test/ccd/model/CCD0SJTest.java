@@ -62,6 +62,9 @@ public class CCD0SJTest {
         trees.add(parse("((A:1,B:1):1,(C:1,D:1):1):0;"));
         trees.add(parse("(((A:0,B:1):1,C:0):1,D:1):0;"));
         trees.add(parse("(((A:1,B:0):1,C:0):1,D:1):0;"));
+        trees.add(parse("(((A:1,B:0):1,C:1):1,D:1):0;"));
+        trees.add(parse("(((A:0,B:1):1,C:1):1,D:1):0;"));
+        trees.add(parse("(((A:1,B:1):1,C:1):1,D:1):0;"));
         return trees;
     }
 
@@ -105,13 +108,19 @@ public class CCD0SJTest {
         double p4 = ccd.getProbabilityOfTree(unsampledTrees.get(0));
         double p5 = ccd.getProbabilityOfTree(unsampledTrees.get(1));
         double p6 = ccd.getProbabilityOfTree(unsampledTrees.get(2));
+        double p7 = ccd.getProbabilityOfTree(unsampledTrees.get(3));
+        double p8 = ccd.getProbabilityOfTree(unsampledTrees.get(4));
+        double p9 = ccd.getProbabilityOfTree(unsampledTrees.get(5));
         System.out.println("sampled tree1 = " + p1);
         System.out.println("sampled tree2 = " + p2);
         System.out.println("sampled tree3 = " + p3);
         System.out.println("unsampled 1 = " + p4);
         System.out.println("unsampled 2 = " + p5);
         System.out.println("unsampled 3 = " + p6);
-        double sum = p1 + p2 + p3 + p4 + p5 + p6;
+        System.out.println("unsampled 4 = " + p7);
+        System.out.println("unsampled 5 = " + p8);
+        System.out.println("unsampled 6 = " + p9);
+        double sum = p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
         System.out.println("all trees prob sum = " + sum);
     }
 
