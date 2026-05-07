@@ -29,6 +29,13 @@ public class CCD0Test {
         return trees;
     }
 
+    private static List<Tree> sampledTreeList2() {
+        List<Tree> trees = new ArrayList<>();
+        trees.add(parse("(((A:1,B:1):1,C:2):1,D:0):0;"));
+        trees.add(parse("(((D:1,C:1):1,B:2):1,A:0):0;"));
+        return trees;
+    }
+
     private static TreeAnnotator.MemoryFriendlyTreeSet sampledTreeSet() throws IOException {
         String dataPath = "/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/example_trees/ccd0_nonSA.trees";
         TreeAnnotator.MemoryFriendlyTreeSet treeSet = new TreeAnnotator().new MemoryFriendlyTreeSet(dataPath, 0);
@@ -69,6 +76,26 @@ public class CCD0Test {
         }
         double p1 = ccd.getProbabilityOfTree(treeList.get(0));
         System.out.println("p1 = " + p1);
+    }
+
+    @Test
+    public void testCCD0CP2() throws IOException {
+        List<Tree> treeList = sampledTreeList2();
+        List<Tree> unsampledTreeList = unsampledTreeList();
+        TreeAnnotator.MemoryFriendlyTreeSet treeSet = sampledTreeSet();
+        CCD0CP ccd = new CCD0CP(treeSet);
+        for (Clade clade : ccd.getClades()) {
+            System.out.println(clade);
+            for (CladePartition p : clade.getPartitions()) {
+                System.out.println(p);
+            }
+        }
+        double p1 = ccd.getProbabilityOfTree(unsampledTreeList.get(0));
+        double p2 = ccd.getProbabilityOfTree(treeList.get(0));
+        double p3 = ccd.getProbabilityOfTree(treeList.get(1));
+        System.out.println("sampled tree 1 = " + p2);
+        System.out.println("sampled tree 2 = " + p3);
+        System.out.println("unsampled tree 1 = " + p1);
     }
 
     @Test

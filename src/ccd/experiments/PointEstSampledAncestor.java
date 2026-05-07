@@ -17,7 +17,7 @@ public class PointEstSampledAncestor {
     public static void main(String[] args) throws IOException {
 
         // String outputPathName = "/Users/zyan598/Documents/GitHub/CCD_sampled_ancestor/experiment/local_test.csv";
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_numSA_pointEst_CP.csv";
+        String outputPathName = "/nesi/nobackup/uoa04397/sophie/fossilBD/experiment/result_numSA_pointEst_CCD0SJ.csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -31,7 +31,7 @@ public class PointEstSampledAncestor {
         StringBuilder sb = new StringBuilder();
         sb.append("rep").append(separator);
         sb.append("numTaxa").append(separator);
-        sb.append("numSA_in_CCD1map").append(separator);
+        sb.append("numSA_in_CCDmap").append(separator);
         sb.append("numSA_in_truth").append(separator);
         sb.append("RF_dist").append(separator);
         sb.append("sym_SA_dist").append(separator);
@@ -53,26 +53,26 @@ public class PointEstSampledAncestor {
             WrappedBeastTreeWithSampledAncestor trueTree = new WrappedBeastTreeWithSampledAncestor(trueTreeSet.next());
             int numTaxa = trueTree.getWrappedTree().getLeafNodeCount();
 
-            CCD1CP ccd1 = new CCD1CP(treeSet, false);
-            // CCD1SJ ccd1 = new CCD1SJ(treeSet, false);
-            WrappedBeastTreeWithSampledAncestor mapTreeCCD1 = new WrappedBeastTreeWithSampledAncestor(ccd1.getMAPTree());
+            // CCD0CP ccd = new CCD0CP(treeSet, false);
+            CCD0SJ ccd = new CCD0SJ(treeSet, false);
+            WrappedBeastTreeWithSampledAncestor mapTreeCCD = new WrappedBeastTreeWithSampledAncestor(ccd.getMAPTree());
 
-            int numSACCD1MAP = mapTreeCCD1.getNumberOfSampledAncestors();
-            int numSACCD1Truth = trueTree.getNumberOfSampledAncestors();
-            int distRFCCD1 = TreeDistances.robinsonsFouldDistance(trueTree, mapTreeCCD1);
-            double symDistSACCD1 = TreeDistances.sampledAncestorSymmetricDistance(trueTree, mapTreeCCD1);
-            int distTopoRFCCD1 = TreeDistances.topologyRobinsonFoulds(trueTree, mapTreeCCD1);
-            int distSARFCCD1 = TreeDistances.sampledAncestorRobinsonFoulds(trueTree, mapTreeCCD1);
+            int numSACCDMAP = mapTreeCCD.getNumberOfSampledAncestors();
+            int numSACCDTruth = trueTree.getNumberOfSampledAncestors();
+            int distRFCCD = TreeDistances.robinsonsFouldDistance(trueTree, mapTreeCCD);
+            double symDistSACCD = TreeDistances.sampledAncestorSymmetricDistance(trueTree, mapTreeCCD);
+            int distTopoRFCCD = TreeDistances.topologyRobinsonFoulds(trueTree, mapTreeCCD);
+            int distSARFCCD = TreeDistances.sampledAncestorRobinsonFoulds(trueTree, mapTreeCCD);
 
             sb = new StringBuilder();
             sb.append(i).append(separator);
             sb.append(numTaxa).append(separator);
-            sb.append(numSACCD1MAP).append(separator);
-            sb.append(numSACCD1Truth).append(separator);
-            sb.append(distRFCCD1).append(separator);
-            sb.append(symDistSACCD1).append(separator);
-            sb.append(distTopoRFCCD1).append(separator);
-            sb.append(distSARFCCD1);
+            sb.append(numSACCDMAP).append(separator);
+            sb.append(numSACCDTruth).append(separator);
+            sb.append(distRFCCD).append(separator);
+            sb.append(symDistSACCD).append(separator);
+            sb.append(distTopoRFCCD).append(separator);
+            sb.append(distSARFCCD);
             writer.println(sb.toString());
             writer.flush();
         }

@@ -112,32 +112,131 @@ public class CCD0CP extends CCD0 {
         if (clade.isLeaf()) {
             clade.setSumCladeCredibilities(1.0);
             return 1.0;
+        } else {
+            double sumSubtreeProbabilities = 0.0;
+            double[] sumPartitionSubtreeProbabilities = new double[clade.getPartitions().size()];
+
+            // compute sum of probabilities over all partitions ...
+            int i = 0;
+            for (CladePartition partition : clade.getPartitions()) {
+                sumPartitionSubtreeProbabilities[i] =
+                        setPartitionProbabilities(partition.getChildClades()[0], useCladeParameters)
+                                * setPartitionProbabilities(partition.getChildClades()[1], useCladeParameters);
+                sumSubtreeProbabilities += sumPartitionSubtreeProbabilities[i];
+                i++;
+            }
+
+            // ... and then normalize
+            if (sumSubtreeProbabilities == 0) {
+                // probability of this subtree is so small, that we have an underflow problem;
+                // we can try to use log transformed probabilities to set CCPs
+                // but the probability of the clade will still become zero
+
+                // try log-sum-exp trick
+                double logMax = Double.NEGATIVE_INFINITY;
+                double[] logProbs = new double[clade.getPartitions().size()];
+                i = 0;
+                for (CladePartition partition : clade.getPartitions()) {
+                    double left = partition.getChildClades()[0].getSumCladeCredibilities();
+                    double right = partition.getChildClades()[1].getSumCladeCredibilities();
+                    logProbs[i] = Math.log(left) + Math.log(right);
+                    logMax = Math.max(logProbs[i], logMax);
+                    i++;
+                }
+
+                // log(Σ exp(xᵢ)) = max + log(Σ exp(xᵢ - max))
+                double intermSum = 0;
+                for (int j = 0; j < logProbs.length; j++) {
+                    if (Double.isFinite(logProbs[j])) {
+                        intermSum += Math.exp(logProbs[j] - logMax);
+                    }
+                }
+                double logSum = logMax + Math.log(intermSum);
+
+                // normalizing with normalized log pi = log pi - log sum
+                i = 0;
+                double pSum = 0;
+                for (CladePartition partition : clade.getPartitions()) {
+                    if (!Double.isFinite(logProbs[i])) {
+                        // we are still encountering underflows
+                        throw new UnderflowException("An underflow has occurred.");
+                    } else {
+                        double logProbability = logProbs[i] - logSum;
+                        double probability = Math.exp(logProbability);
+                        pSum += probability;
+
+                        if (Double.isNaN(probability)) {
+                            out.println("NaN probability = " + probability);
+                            out.println("logProbability = " + logProbability);
+                            out.println("logProbs[i] = " + logProbs[i]);
+                            out.println("logSum = " + logSum);
+                        }
+
+                        partition.setCCP(probability);
+                    }
+                    i++;
+                }
+            } else {
+                i = 0;
+                for (CladePartition partition : clade.getPartitions()) {
+                    double probability = sumPartitionSubtreeProbabilities[i] / sumSubtreeProbabilities;
+                    if (Double.isNaN(probability)) {
+                        out.println("clade = " + clade);
+                        out.println("partition = " + partition);
+                        out.println("sumPartitionSubtreeProbabilities = " + sumPartitionSubtreeProbabilities[i]);
+                        out.println("sumSubtreeProbabilities = " + sumSubtreeProbabilities);
+                    }
+                    partition.setCCP(probability);
+                    i++;
+                }
+            }
+
+            // combined with probability of clade, we get sum of all subtree probabilities
+            double sumCladeCredibilities = sumSubtreeProbabilities * cladeValue;
+            clade.setSumCladeCredibilities(sumCladeCredibilities);
+            return sumCladeCredibilities;
         }
-
-        // NO special cherry case, bcs cherry is not trivial anymore
-
-        double totalOccurrences = clade.getNumberOfOccurrences();
-        double sumSubtreeProbabilities = 0.0;
-
-        for (CladePartition partition : clade.getPartitions()) {
-
-            // --- CP normalization ---
-            double occ = partition.getNumberOfOccurrences();
-            double ccp = (totalOccurrences == 0) ? 0.0 : occ / totalOccurrences;
-            partition.setCCP(ccp);
-
-            // --- recurse ---
-            double left = setPartitionProbabilities(partition.getChildClades()[0], useCladeParameters);
-            double right = setPartitionProbabilities(partition.getChildClades()[1], useCladeParameters);
-
-            sumSubtreeProbabilities += ccp * left * right;
-        }
-
-        double sumCladeCredibilities = sumSubtreeProbabilities * cladeValue;
-        clade.setSumCladeCredibilities(sumCladeCredibilities);
-
-        return sumCladeCredibilities;
     }
+
+    // @Override
+    // public double setPartitionProbabilities(Clade clade, boolean useCladeParameters) {
+    //
+    //     if (clade.getSumCladeCredibilities() > 0) {
+    //         return clade.getSumCladeCredibilities();
+    //     }
+    //
+    //     double cladeValue = useCladeParameters ? clade.getCladeParameter() : clade.getCladeCredibility();
+    //
+    //     // Leaf: still trivial, bcs all leaves, SA or not, all have probability 1 locally
+    //     if (clade.isLeaf()) {
+    //         clade.setSumCladeCredibilities(1.0);
+    //         return 1.0;
+    //     }
+    //
+    //     // NO special cherry case, bcs cherry is not trivial anymore
+    //
+    //     double totalOccurrences = clade.getNumberOfOccurrences();
+    //     double sumSubtreeProbabilities = 0.0;
+    //
+    //     for (CladePartition partition : clade.getPartitions()) {
+    //
+    //         // --- CP normalization ---
+    //         double occ = partition.getNumberOfOccurrences();
+    //         double ccp = (totalOccurrences == 0) ? 0.0 : occ / totalOccurrences;
+    //         partition.setCCP(ccp);
+    //
+    //         // --- recurse ---
+    //         double left = setPartitionProbabilities(partition.getChildClades()[0], useCladeParameters);
+    //         double right = setPartitionProbabilities(partition.getChildClades()[1], useCladeParameters);
+    //
+    //         sumSubtreeProbabilities += ccp * left * right;
+    //     }
+    //
+    //     double sumCladeCredibilities = sumSubtreeProbabilities * cladeValue;
+    //     clade.setSumCladeCredibilities(sumCladeCredibilities);
+    //
+    //     return sumCladeCredibilities;
+    // }
 
     @Override
     public String toString() {
