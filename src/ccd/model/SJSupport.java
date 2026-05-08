@@ -32,27 +32,34 @@ import java.util.ArrayList;
  */
 final class SJSupport {
 
-    private SJSupport() {}
+    private SJSupport() {
+    }
 
-    /** Bitset width used for all clades under the SJ identity: {@code 2n + 1}
-     *  (taxa bits, SA-flag bits, sentinel bit). */
+    /**
+     * Bitset width used for all clades under the SJ identity: {@code 2n + 1}
+     * (taxa bits, SA-flag bits, sentinel bit).
+     */
     static int extendedBitWidth(int leafArraySize) {
         return 2 * leafArraySize + 1;
     }
 
     /* -- KEY CONSTRUCTION -- */
 
-    /** Bitset key for a leaf clade: only the taxon bit is set (SA flags live
-     *  on the parent under the SJ identity, not on the leaf itself). */
+    /**
+     * Bitset key for a leaf clade: only the taxon bit is set (SA flags live
+     * on the parent under the SJ identity, not on the leaf itself).
+     */
     static BitSet leafKey(int taxonIndex, int leafArraySize) {
         BitSet key = BitSet.newBitSet(extendedBitWidth(leafArraySize));
         key.set(taxonIndex);
         return key;
     }
 
-    /** Bitset key for an internal clade under the SJ identity: union of
-     *  descendant taxa bits, plus an SA-flag bit for each direct leaf child of
-     *  this vertex with branch length zero. SA flags do not propagate up. */
+    /**
+     * Bitset key for an internal clade under the SJ identity: union of
+     * descendant taxa bits, plus an SA-flag bit for each direct leaf child of
+     * this vertex with branch length zero. SA flags do not propagate up.
+     */
     static BitSet extendedSelfKey(Node vertex, int leafArraySize) {
         BitSet key = BitSet.newBitSet(extendedBitWidth(leafArraySize));
         collectTaxaBits(vertex, key);
@@ -151,8 +158,10 @@ final class SJSupport {
 
     /* -- SA DETECTION & DISPLAY -- */
 
-    /** True iff the clade has at least one direct sampled-ancestor leaf
-     *  child (any bit set in the SA region {@code [n, 2n)}). */
+    /**
+     * True iff the clade has at least one direct sampled-ancestor leaf
+     * child (any bit set in the SA region {@code [n, 2n)}).
+     */
     static boolean isSampledAncestor(Clade clade, int leafArraySize) {
         BitSet bits = clade.getCladeInBits();
         for (int i = leafArraySize; i < 2 * leafArraySize; i++) {
@@ -161,8 +170,10 @@ final class SJSupport {
         return false;
     }
 
-    /** Renders the clade's SA-flag region as a human-readable string for
-     *  inclusion in {@link Clade#toString()}. */
+    /**
+     * Renders the clade's SA-flag region as a human-readable string for
+     * inclusion in {@link Clade#toString()}.
+     */
     static String saInfoString(Clade clade, int leafArraySize) {
         BitSet bits = clade.getCladeInBits();
         java.util.List<Integer> sa = new ArrayList<>();
@@ -374,5 +385,22 @@ final class SJSupport {
 
     private static double safeHeight(Node n) {
         return n.isLeaf() ? 0.0 : n.getHeight();
+    }
+
+    // TODO: not correct
+    static int getNumberOfClades(AbstractCCD ccd) {
+        // System.out.println(ccd.cladeMapping);
+        return ccd.cladeMapping.size() - 1; // remove the dummy root placeholder
+    }
+
+    // TODO: not correct
+    static int getNumberOfCladePartitions(AbstractCCD ccd) {
+        int count = 0;
+        for (Clade clade : ccd.getClades()) {
+            if (!clade.isRoot()) { // we don't want to count the dummy partitions under the root placeholder
+                count += clade.getNumberOfPartitions();
+            }
+        }
+        return count;
     }
 }

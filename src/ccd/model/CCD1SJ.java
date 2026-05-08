@@ -28,9 +28,11 @@ import java.util.List;
  */
 public class CCD1SJ extends CCD1 {
 
-    /** Shared empty sister used in rootClade's (variant, emptyClade) partitions.
-     *  Populated in {@link #initializeRootClade} since the super constructor
-     *  calls cladifyTree before subclass field initialisers run. */
+    /**
+     * Shared empty sister used in rootClade's (variant, emptyClade) partitions.
+     * Populated in {@link #initializeRootClade} since the super constructor
+     * calls cladifyTree before subclass field initialisers run.
+     */
     protected Clade emptyClade;
 
     public CCD1SJ(List<Tree> trees, double burnin) {
@@ -92,6 +94,18 @@ public class CCD1SJ extends CCD1 {
     protected Tree getTreeBasedOnStrategy(SamplingStrategy samplingStrategy,
                                           HeightSettingStrategy heightStrategy) {
         return SJSupport.buildTree(this, emptyClade, samplingStrategy, heightStrategy);
+    }
+
+    /* -- CCD graph size -- */
+
+    @Override
+    public int getNumberOfClades() {
+        return SJSupport.getNumberOfClades(this);
+    }
+
+    @Override
+    public int getNumberOfCladePartitions() {
+        return SJSupport.getNumberOfCladePartitions(this);
     }
 
     /* -- MISC -- */

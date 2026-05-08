@@ -44,6 +44,26 @@ public class CCD1CPTest {
     }
 
     @Test
+    public void graphSizeTest() {
+        List<Tree> trees = sampleTreeList();
+        CCD1CP ccd1cp = new CCD1CP(trees, 0.0);
+        CCD1SJ ccd1sj = new CCD1SJ(trees, 0.0);
+        CCD0CP ccd0cp = new CCD0CP(trees, 0.0);
+        CCD0SJ ccd0sj = new CCD0SJ(trees, 0.0);
+        System.out.println("ccd1 CP # clades = " + ccd1cp.getNumberOfClades());
+        System.out.println("ccd1 CP # splits = " + ccd1cp.getNumberOfCladePartitions());
+        System.out.println("ccd1 SJ # clades = " + ccd1sj.getNumberOfClades());
+        for (Clade clade : ccd1sj.getClades()) {
+            System.out.println(clade);
+        }
+        System.out.println("ccd1 SJ # splits = " + ccd1sj.getNumberOfCladePartitions());
+        System.out.println("ccd0 CP # clades = " + ccd0cp.getNumberOfClades());
+        System.out.println("ccd0 CP # splits = " + ccd0cp.getNumberOfCladePartitions());
+        System.out.println("ccd0 SJ # clades = " + ccd0sj.getNumberOfClades());
+        System.out.println("ccd0 SJ # splits = " + ccd0sj.getNumberOfCladePartitions());
+    }
+
+    @Test
     public void distanceTest() {
         List<Tree> trees = sampleTreeList();
         WrappedBeastTreeWithSampledAncestor tree1 = new WrappedBeastTreeWithSampledAncestor(trees.get(0));

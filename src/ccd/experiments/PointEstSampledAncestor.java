@@ -22,11 +22,7 @@ public class PointEstSampledAncestor {
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
 
-        // header. RF_dist and sym_SA_dist preserved for backward compatibility
-        // with existing analysis scripts. topoRF_dist and SA_RF_dist are the
-        // new columns: pure topology RF (taxa-only, halved) and the proper
-        // sampled-ancestor RF defined in the paper (full symmetric difference
-        // of cuttable clade sets).
+        // header
         String separator = ",";
         StringBuilder sb = new StringBuilder();
         sb.append("rep").append(separator);
