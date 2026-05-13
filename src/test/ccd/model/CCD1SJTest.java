@@ -2,10 +2,7 @@ package test.ccd.model;
 
 import beast.base.evolution.tree.Tree;
 import beast.base.evolution.tree.TreeParser;
-import ccd.model.CCD1;
-import ccd.model.CCD1CP;
-import ccd.model.CCD1SJ;
-import ccd.model.Clade;
+import ccd.model.*;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -50,6 +47,13 @@ public class CCD1SJTest {
     public void testCCD1SJProbabilities() {
         List<Tree> trees = sampleTrees();
         CCD1SJ sj = new CCD1SJ(trees, 0.0);
+
+        for (Clade clade : sj.getClades()) {
+            System.out.println(clade);
+            for (CladePartition p : clade.getPartitions()) {
+                System.out.println(p);
+            }
+        }
 
         double p1 = sj.getProbabilityOfTree(trees.get(0));
         double p2 = sj.getProbabilityOfTree(trees.get(1));
