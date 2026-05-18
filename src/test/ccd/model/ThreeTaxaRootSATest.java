@@ -41,6 +41,7 @@ public class ThreeTaxaRootSATest {
     public void testProbabilities() {
         List<Tree> trees = sampleTreeList();
         CCD0CP ccd = new CCD0CP(trees, 0.0);
+        // CCD0SJ ccd = new CCD0SJ(trees, 0.0);
 
         for (Clade clade : ccd.getClades()) {
             System.out.println(clade);

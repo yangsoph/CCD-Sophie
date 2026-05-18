@@ -86,7 +86,10 @@ public class CCD0CP extends CCD0 {
 
                 for (Clade parent : parents) {
                     if (parent == A || parent == B) continue;
-                    if (parent.size() <= 2) continue;
+                    if (parent.size() == 2) {
+                        // cannot have a cherry with both children being SA
+                        if (isSampledAncestor(A) && isSampledAncestor(B)) continue;
+                    }
                     if (parent.getCladePartition(A, B) != null) continue;
                     parent.createCladePartition(A, B);
                 }
@@ -110,8 +113,10 @@ public class CCD0CP extends CCD0 {
 
         // Leaf: still trivial, bcs all leaves, SA or not, all have probability 1 locally
         if (clade.isLeaf()) {
-            clade.setSumCladeCredibilities(1.0);
-            return 1.0;
+            // clade.setSumCladeCredibilities(1.0);
+            clade.setSumCladeCredibilities(cladeValue);
+            // return 1.0;
+            return cladeValue;
         } else {
             double sumSubtreeProbabilities = 0.0;
             double[] sumPartitionSubtreeProbabilities = new double[clade.getPartitions().size()];

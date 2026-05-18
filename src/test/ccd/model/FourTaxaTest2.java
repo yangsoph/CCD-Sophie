@@ -3,6 +3,7 @@ package test.ccd.model;
 import beast.base.evolution.tree.Tree;
 import beast.base.evolution.tree.TreeParser;
 import ccd.model.CCD0CP;
+import ccd.model.CCD1CP;
 import ccd.model.Clade;
 import ccd.model.CladePartition;
 import org.junit.jupiter.api.Test;
