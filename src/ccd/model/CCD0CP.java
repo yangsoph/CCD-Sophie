@@ -105,13 +105,14 @@ public class CCD0CP extends CCD0 {
     @Override
     public double setPartitionProbabilities(Clade clade, boolean useCladeParameters) {
 
-        if (clade.getSumCladeCredibilities() > 0) {
-            return clade.getSumCladeCredibilities();
-        }
+        // Don't run this if clause
+        // if (clade.getSumCladeCredibilities() > 0) {
+        //     return clade.getSumCladeCredibilities();
+        // }
 
+        // usually initialise CCD0 uses getCladeCredibility
         double cladeValue = useCladeParameters ? clade.getCladeParameter() : clade.getCladeCredibility();
 
-        // Leaf: still trivial, bcs all leaves, SA or not, all have probability 1 locally
         if (clade.isLeaf()) {
             // clade.setSumCladeCredibilities(1.0);
             clade.setSumCladeCredibilities(cladeValue);

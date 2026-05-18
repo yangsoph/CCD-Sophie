@@ -211,19 +211,7 @@ public class CCD0SJ extends CCD0 {
                                           HeightSettingStrategy heightStrategy) {
         return SJSupport.buildTree(this, emptyClade, samplingStrategy, heightStrategy);
     }
-
-    /* -- CCD graph size -- */
-
-    @Override
-    public int getNumberOfClades() {
-        return SJSupport.getNumberOfClades(this);
-    }
-
-    @Override
-    public int getNumberOfCladePartitions() {
-        return SJSupport.getNumberOfCladePartitions(this);
-    }
-
+    
     /* -- MISC -- */
 
     @Override

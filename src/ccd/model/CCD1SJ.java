@@ -96,18 +96,6 @@ public class CCD1SJ extends CCD1 {
         return SJSupport.buildTree(this, emptyClade, samplingStrategy, heightStrategy);
     }
 
-    /* -- CCD graph size -- */
-
-    @Override
-    public int getNumberOfClades() {
-        return SJSupport.getNumberOfClades(this);
-    }
-
-    @Override
-    public int getNumberOfCladePartitions() {
-        return SJSupport.getNumberOfCladePartitions(this);
-    }
-
     /* -- MISC -- */
 
     @Override

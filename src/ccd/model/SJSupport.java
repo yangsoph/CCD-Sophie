@@ -386,21 +386,4 @@ final class SJSupport {
     private static double safeHeight(Node n) {
         return n.isLeaf() ? 0.0 : n.getHeight();
     }
-
-    // TODO: not correct
-    static int getNumberOfClades(AbstractCCD ccd) {
-        // System.out.println(ccd.cladeMapping);
-        return ccd.cladeMapping.size() - 1; // remove the dummy root placeholder
-    }
-
-    // TODO: not correct
-    static int getNumberOfCladePartitions(AbstractCCD ccd) {
-        int count = 0;
-        for (Clade clade : ccd.getClades()) {
-            if (!clade.isRoot()) { // we don't want to count the dummy partitions under the root placeholder
-                count += clade.getNumberOfPartitions();
-            }
-        }
-        return count;
-    }
 }
