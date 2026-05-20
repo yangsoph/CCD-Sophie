@@ -105,20 +105,23 @@ public class CCD0CP extends CCD0 {
     @Override
     public double setPartitionProbabilities(Clade clade, boolean useCladeParameters) {
 
-        // Don't run this if clause
-        // if (clade.getSumCladeCredibilities() > 0) {
-        //     return clade.getSumCladeCredibilities();
-        // }
-
         // usually initialise CCD0 uses getCladeCredibility
         double cladeValue = useCladeParameters ? clade.getCladeParameter() : clade.getCladeCredibility();
 
         if (clade.isLeaf()) {
-            // clade.setSumCladeCredibilities(1.0);
+            // Leaves carry cladeValue (their extended-clade credibility), NOT 1, so the
+            // leaf branch must run BEFORE the memo guard: resetSumCladeCredibilities sets
+            // leaves to 1, which the guard would otherwise return as a stale CCP.
             clade.setSumCladeCredibilities(cladeValue);
-            // return 1.0;
             return cladeValue;
         } else {
+            // Memoise internal clades: the clade DAG has heavy shared substructure, so
+            // without this each clade is recomputed once per path that reaches it
+            // (exponential). Sentinel -1 = not computed this pass
+            // (Clade.resetSumCladeCredibilities sets internal clades to -1).
+            if (clade.getSumCladeCredibilities() >= 0) {
+                return clade.getSumCladeCredibilities();
+            }
             double sumSubtreeProbabilities = 0.0;
             double[] sumPartitionSubtreeProbabilities = new double[clade.getPartitions().size()];
 
