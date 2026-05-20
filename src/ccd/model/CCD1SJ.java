@@ -88,6 +88,26 @@ public class CCD1SJ extends CCD1 {
         return SJSupport.computeTreeProbability(this, emptyClade, vertex, runningProbability, computeLog);
     }
 
+    /* -- HELD-OUT (LEAVE-ONE-TREE-OUT) PROBABILITY -- */
+    // CCD1's inherited held-out traversal assumes the EL/CP leaf-SA-bit
+    // encoding and fails on SJ clade identities; route through SJSupport instead.
+
+    @Override
+    public double getProbOfHeldOutTree(Tree tree, double alpha) {
+        resetCacheIfProbabilitiesDirty();
+        double[] runningProbability = new double[]{1};
+        SJSupport.computeTreeProbabilityHeldOut(this, emptyClade, tree.getRoot(), runningProbability, alpha, false);
+        return runningProbability[0];
+    }
+
+    @Override
+    public double getLogProbOfHeldOutTree(Tree tree, double alpha) {
+        resetCacheIfProbabilitiesDirty();
+        double[] runningProbability = new double[]{0};
+        SJSupport.computeTreeProbabilityHeldOut(this, emptyClade, tree.getRoot(), runningProbability, alpha, true);
+        return runningProbability[0];
+    }
+
     /* -- SAMPLING & MAP -- */
 
     @Override
