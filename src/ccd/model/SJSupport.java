@@ -272,6 +272,77 @@ final class SJSupport {
         return currentClade;
     }
 
+    /* -- HELD-OUT (LEAVE-ONE-TREE-OUT) TREE PROBABILITY -- */
+
+    /**
+     * Leave-one-tree-out counterpart of {@link #computeTreeProbability}: folds
+     * in the held-out CCPs {@code (count-1+alpha)/(parentCount+alpha*k-1)}
+     * instead of the in-sample CCPs, so the returned value is
+     * {@code P(T | CCD trained on all trees except T)}. Mirrors the EL/CP
+     * held-out traversal in {@link CCD1#getLogProbOfHeldOutTree}: a clade or
+     * partition seen only in the held-out tree contributes no probability.
+     */
+    static Clade computeTreeProbabilityHeldOut(AbstractCCD ccd, Clade emptyClade, Node root,
+                                               double[] runningProbability, double alpha, boolean computeLog) {
+        Clade variant = computeProbSJVertexHeldOut(ccd, root, runningProbability, alpha, computeLog);
+        if (variant == null) return null;
+        CladePartition rootPart = ccd.rootClade.getCladePartition(variant, emptyClade);
+        if (rootPart == null) {
+            AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+        if (computeLog) {
+            runningProbability[0] += rootPart.getLogCCPInHeldOutTree(alpha);
+        } else {
+            runningProbability[0] *= rootPart.getCCPInHeldOutTree(alpha);
+        }
+        return variant;
+    }
+
+    private static Clade computeProbSJVertexHeldOut(AbstractCCD ccd, Node vertex,
+                                                    double[] runningProbability, double alpha, boolean computeLog) {
+        if (vertex.isLeaf()) {
+            BitSet leafKey = leafKey(vertex.getNr(), ccd.leafArraySize);
+            Clade leafClade = ccd.cladeMapping.get(leafKey);
+            if (leafClade == null) {
+                AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+                return null;
+            }
+            return leafClade;
+        }
+
+        Clade firstChildClade = computeProbSJVertexHeldOut(ccd, vertex.getChildren().get(0), runningProbability, alpha, computeLog);
+        Clade secondChildClade = computeProbSJVertexHeldOut(ccd, vertex.getChildren().get(1), runningProbability, alpha, computeLog);
+
+        if (firstChildClade == null || secondChildClade == null) {
+            AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+
+        BitSet selfKey = extendedSelfKey(vertex, ccd.leafArraySize);
+        Clade currentClade = ccd.cladeMapping.get(selfKey);
+        // A clade seen in exactly one tree exists only because of the held-out
+        // tree; the held-out model has never seen it, so contribute no probability
+        // (also avoids a zero denominator in the held-out CCP at alpha=0).
+        if (currentClade == null || currentClade.getNumberOfOccurrences() == 1) {
+            AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+
+        CladePartition partition = currentClade.getCladePartition(firstChildClade, secondChildClade);
+        if (partition == null) {
+            AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+
+        if (computeLog) {
+            runningProbability[0] += partition.getLogCCPInHeldOutTree(alpha);
+        } else {
+            runningProbability[0] *= partition.getCCPInHeldOutTree(alpha);
+        }
+        return currentClade;
+    }
+
     /* -- SAMPLING & MAP -- */
 
     /**
