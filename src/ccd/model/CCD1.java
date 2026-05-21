@@ -170,25 +170,15 @@ public class CCD1 extends AbstractCCD {
     }
 
     private Clade computeProbOfVertexInHeldOutTree(Node vertex, double[] runningProbability, double alpha, boolean computeLog) {
-        BitSet cladeInBits = BitSet.newBitSet(leafArraySize + 1);
+        BitSet cladeInBits = BitSet.newBitSet(leafArraySize);
 
         if (vertex.isLeaf()) {
             int index = vertex.getNr();
             cladeInBits.set(index);
-            if (vertex.getLength() != 0) { // if vertex is not a sampled ancestor, set the last bit to 1
-                cladeInBits.set(leafArraySize);
-            }
 
-            Clade currentClade = cladeMapping.get(cladeInBits);
+            // leaf has probability 1, so no changes to runningProbability
 
-            // probability of the leaf
-            if (computeLog) {
-                runningProbability[0] += currentClade.getLogProbability();
-            } else {
-                runningProbability[0] *= currentClade.getProbability();
-            }
             return cladeMapping.get(cladeInBits);
-
         } else {
             Clade firstChildClade = computeProbOfVertexInHeldOutTree(vertex.getChildren().get(0), runningProbability, alpha, computeLog);
             Clade secondChildClade = computeProbOfVertexInHeldOutTree(vertex.getChildren().get(1), runningProbability, alpha, computeLog);

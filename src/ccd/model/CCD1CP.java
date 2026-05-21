@@ -69,9 +69,29 @@ public class CCD1CP extends CCD1 {
         return CPSupport.computeCladeToNodeMapping(vertex, map, this, leafArraySize);
     }
 
+    /* -- TREE PROBABILITY -- */
+
     @Override
     protected Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog) {
-        return CPSupport.computeProbabilityOfVertex(vertex, runningProbability, computeLog, this, leafArraySize);
+        return CPSupport.computeProbCPVertex(vertex, runningProbability, computeLog, this, leafArraySize);
+    }
+
+    /* -- HELD-OUT (LEAVE-ONE-TREE-OUT) PROBABILITY -- */
+
+    @Override
+    public double getProbOfHeldOutTree(Tree tree, double alpha) {
+        resetCacheIfProbabilitiesDirty();
+        double[] runningProbability = new double[]{1};
+        CPSupport.computeTreeProbabilityHeldOut(this, tree.getRoot(), runningProbability, alpha, false);
+        return runningProbability[0];
+    }
+
+    @Override
+    public double getLogProbOfHeldOutTree(Tree tree, double alpha) {
+        resetCacheIfProbabilitiesDirty();
+        double[] runningProbability = new double[]{0};
+        CPSupport.computeTreeProbabilityHeldOut(this, tree.getRoot(), runningProbability, alpha, true);
+        return runningProbability[0];
     }
 
     /* -- MISC -- */

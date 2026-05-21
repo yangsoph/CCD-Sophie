@@ -99,7 +99,7 @@ public class CCD0CP extends CCD0 {
 
     @Override
     protected Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog) {
-        return CPSupport.computeProbabilityOfVertex(vertex, runningProbability, computeLog, this, leafArraySize);
+        return CPSupport.computeProbCPVertex(vertex, runningProbability, computeLog, this, leafArraySize);
     }
 
     @Override

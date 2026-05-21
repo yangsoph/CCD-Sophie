@@ -3,7 +3,6 @@ package ccd.model;
 import beast.base.evolution.tree.Node;
 import ccd.model.bitsets.BitSet;
 
-import java.util.ArrayList;
 import java.util.Map;
 
 final class CPSupport {
@@ -135,7 +134,7 @@ final class CPSupport {
         return bits;
     }
 
-    static Clade computeProbabilityOfVertex(Node vertex, double[] runningProbability, boolean computeLog, AbstractCCD ccd, int leafArraySize) {
+    static Clade computeProbCPVertex(Node vertex, double[] runningProbability, boolean computeLog, AbstractCCD ccd, int leafArraySize) {
         if (vertex.isLeaf()) {
             // set bitSet
             BitSet leafKey = leafKey(vertex, leafArraySize);
@@ -150,8 +149,8 @@ final class CPSupport {
             return leafClade;
         }
 
-        Clade firstChildClade = computeProbabilityOfVertex(vertex.getChildren().get(0), runningProbability, computeLog, ccd, leafArraySize);
-        Clade secondChildClade = computeProbabilityOfVertex(vertex.getChildren().get(1), runningProbability, computeLog, ccd, leafArraySize);
+        Clade firstChildClade = computeProbCPVertex(vertex.getChildren().get(0), runningProbability, computeLog, ccd, leafArraySize);
+        Clade secondChildClade = computeProbCPVertex(vertex.getChildren().get(1), runningProbability, computeLog, ccd, leafArraySize);
 
         if (computeLog && runningProbability[0] > 0) {
             return null;
@@ -177,6 +176,57 @@ final class CPSupport {
             }
         } else {
             ccd.setComputedNoProbability(runningProbability, computeLog);
+        }
+        return currentClade;
+    }
+
+    /* -- HELD-OUT (LEAVE-ONE-TREE-OUT) TREE PROBABILITY -- */
+
+    static Clade computeTreeProbabilityHeldOut(AbstractCCD ccd, Node root, double[] runningProbability, double alpha, boolean computeLog) {
+        Clade variant = computeProbCPVertexHeldOut(ccd, root, runningProbability, alpha, computeLog);
+        return variant;
+    }
+
+    private static Clade computeProbCPVertexHeldOut(AbstractCCD ccd, Node vertex, double[] runningProbability, double alpha, boolean computeLog) {
+        if (vertex.isLeaf()) {
+            BitSet leafKey = leafKey(vertex, ccd.leafArraySize);
+            Clade leafClade = ccd.cladeMapping.get(leafKey);
+            if (leafClade == null) {
+                AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+                return null;
+            }
+            return leafClade;
+        }
+
+        Clade firstChildClade = computeProbCPVertexHeldOut(ccd, vertex.getChildren().get(0), runningProbability, alpha, computeLog);
+        Clade secondChildClade = computeProbCPVertexHeldOut(ccd, vertex.getChildren().get(1), runningProbability, alpha, computeLog);
+
+        if (firstChildClade == null || secondChildClade == null) {
+            AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+
+        BitSet selfKey = extendedSelfKey(firstChildClade, secondChildClade, ccd.leafArraySize);
+        Clade currentClade = ccd.cladeMapping.get(selfKey);
+
+        // A clade seen in exactly one tree exists only because of the held-out
+        // tree; the held-out model has never seen it, so contribute no probability
+        // (also avoids a zero denominator in the held-out CCP at alpha=0).
+        if (currentClade == null || currentClade.getNumberOfOccurrences() == 1) {
+            AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+
+        CladePartition partition = currentClade.getCladePartition(firstChildClade, secondChildClade);
+        if (partition == null) {
+            AbstractCCD.setComputedNoProbability(runningProbability, computeLog);
+            return null;
+        }
+
+        if (computeLog) {
+            runningProbability[0] += partition.getLogCCPInHeldOutTree(alpha);
+        } else {
+            runningProbability[0] *= partition.getCCPInHeldOutTree(alpha);
         }
         return currentClade;
     }

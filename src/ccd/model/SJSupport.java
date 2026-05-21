@@ -282,8 +282,7 @@ final class SJSupport {
      * held-out traversal in {@link CCD1#getLogProbOfHeldOutTree}: a clade or
      * partition seen only in the held-out tree contributes no probability.
      */
-    static Clade computeTreeProbabilityHeldOut(AbstractCCD ccd, Clade emptyClade, Node root,
-                                               double[] runningProbability, double alpha, boolean computeLog) {
+    static Clade computeTreeProbabilityHeldOut(AbstractCCD ccd, Clade emptyClade, Node root, double[] runningProbability, double alpha, boolean computeLog) {
         Clade variant = computeProbSJVertexHeldOut(ccd, root, runningProbability, alpha, computeLog);
         if (variant == null) return null;
         CladePartition rootPart = ccd.rootClade.getCladePartition(variant, emptyClade);
@@ -299,8 +298,7 @@ final class SJSupport {
         return variant;
     }
 
-    private static Clade computeProbSJVertexHeldOut(AbstractCCD ccd, Node vertex,
-                                                    double[] runningProbability, double alpha, boolean computeLog) {
+    private static Clade computeProbSJVertexHeldOut(AbstractCCD ccd, Node vertex, double[] runningProbability, double alpha, boolean computeLog) {
         if (vertex.isLeaf()) {
             BitSet leafKey = leafKey(vertex.getNr(), ccd.leafArraySize);
             Clade leafClade = ccd.cladeMapping.get(leafKey);
