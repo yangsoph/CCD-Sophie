@@ -12,16 +12,16 @@ import java.util.List;
 
 public class LoadOrStoreTrees {
 
-    public static List<Tree> loadTrees(File treeFile, double burnin) throws IOException {
+    public static List<Tree> loadTrees(File treeFile, double burninPercentage) throws IOException {
         NexusParser parser = new NexusParser();
         parser.parseFile(treeFile);
         System.out.println("loading tree file: " + treeFile);
         List<Tree> fullTreeList = parser.trees;
         List<Tree> treesToUse;
-        if (burnin == 0) {
+        if (burninPercentage == 0) {
             treesToUse = fullTreeList;
         } else {
-            int numDiscardedTrees = (int) (fullTreeList.size() * burnin);
+            int numDiscardedTrees = (int) (fullTreeList.size() * burninPercentage);
             int numUsedTrees = fullTreeList.size() - numDiscardedTrees;
             treesToUse = new ArrayList<Tree>(numUsedTrees);
             treesToUse.addAll(fullTreeList.subList(numDiscardedTrees, fullTreeList.size()));
