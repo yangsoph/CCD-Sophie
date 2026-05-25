@@ -314,6 +314,23 @@ public abstract class AbstractCCD implements ITreeDistribution {
     }
 
     /**
+     * Returns the clade for the given BitSet, creating and adding it (with zero
+     * occurrences) if it does not exist yet. Intended for graph-expansion
+     * algorithms that introduce novel clades (e.g. NNI clade expansion); the
+     * given BitSet is cloned so the caller may reuse it.
+     *
+     * @param cladeInBits BitSet describing the clade
+     * @return the existing or newly created clade
+     */
+    public Clade getOrCreateClade(BitSet cladeInBits) {
+        Clade clade = cladeMapping.get(cladeInBits);
+        if (clade == null) {
+            clade = addNewClade((BitSet) cladeInBits.clone());
+        }
+        return clade;
+    }
+
+    /**
      * Removes the given tree from set of trees the CCD graph is based on
      * (reduces the number of occurrences for each of the tree's clades and
      * partitions by one). The behavior is unspecified if tree wasn't used
