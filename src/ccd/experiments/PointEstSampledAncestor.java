@@ -13,7 +13,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-public class PointEstSampledAncestorTest {
+public class PointEstSampledAncestor {
 
     public static int startRep = 0;
     public static int endRep = 100;

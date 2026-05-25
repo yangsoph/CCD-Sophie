@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 
-public class LOTOSampledAncestor {
+public class LOTOSampledAncestorSimData {
     public static int startRep = 77;
     public static int endRep = 100;
 
