@@ -23,10 +23,12 @@ public class PointEstSampledAncestor {
         // model name -> constructor
         Map<String, Function<TreeAnnotator.MemoryFriendlyTreeSet, AbstractCCD>> ccdModels = new LinkedHashMap<>();
 
-        ccdModels.put("CCD1CP", ts -> new CCD1CP(ts, false));
-        ccdModels.put("CCD1SJ", ts -> new CCD1SJ(ts, false));
-        ccdModels.put("CCD0CP", ts -> new CCD0CP(ts, false));
-        ccdModels.put("CCD0SJ", ts -> new CCD0SJ(ts, false));
+        // ccdModels.put("CCD1CP", ts -> new CCD1CP(ts, false));
+        // ccdModels.put("CCD1SJ", ts -> new CCD1SJ(ts, false));
+        // ccdModels.put("CCD0CP", ts -> new CCD0CP(ts, false));
+        // ccdModels.put("CCD0SJ", ts -> new CCD0SJ(ts, false));
+        ccdModels.put("CCD1", ts -> new CCD1(ts, false));
+        ccdModels.put("CCD0", ts -> new CCD0(ts, false));
 
         for (Map.Entry<String, Function<TreeAnnotator.MemoryFriendlyTreeSet, AbstractCCD>> entry : ccdModels.entrySet()) {
 
