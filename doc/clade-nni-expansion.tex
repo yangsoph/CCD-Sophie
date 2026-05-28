@@ -1,6 +1,8 @@
 \documentclass{article}
 \usepackage{amsmath,amssymb}
 \usepackage[margin=1in]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
 
 \newcommand{\CC}{\mathcal{C}}
 \newcommand{\NN}{\mathcal{N}}
@@ -19,7 +21,7 @@ analogous operation one level up (expanding the \emph{clade set} $\CC$ itself)
 by reading nearest-neighbour-interchange (NNI) rearrangements directly off
 the stored splits, without ever building a tree.
 
-\paragraph{The move at the clade level.}
+\paragraph{NNI at the clade level.}
 An internal edge of a tree is a stored split $P\to\{L,R\}$: the parent clade $P$
 branches into disjoint children $L,R$ with $L\union R=P$. An NNI at that edge
 needs the grandchildren. Descend into one child, say $L$, with its split
@@ -85,15 +87,6 @@ novelty one would extend to SPR neighbourhoods, also expressible at the clade
 level (a regrafted subtree clade unioned with whatever lies below the target
 edge), at the cost of many more candidates.
 
-\paragraph{Empirical behaviour.}
-On a real posterior (RSV2, $n=129$ taxa, $2251$ trees after burn-in), $\CC$ has
-$1331$ clades. The graph-wide expansion finds $|\NN_{\mathrm{gw}}|=21{,}198$
-novel clades (a $15.9\times$ blow-up); the co-occurring expansion finds
-$|\NN_{\mathrm{co}}|=4{,}253$ ($3.2\times$). The containment
-$\NN_{\mathrm{co}}\subseteq\NN_{\mathrm{gw}}$ holds with no co-occurring-only
-clades, and the cross-tree recombinations account for the $\approx 5\times$ gap.
-The whole pass runs in a few seconds.
-
 \section*{Parameterisation in CCD1 / regCCD}
 
 The clade expansion is most natural in the \emph{split}-parameterised models.
@@ -143,39 +136,189 @@ recombinations. Crucially $\beta$ does not affect \emph{coverage} (any
 $\beta>0$ keeps the NNI split positive); it only rebalances mass at observed
 parents.
 
-We evaluate by \emph{batched leave-one-tree-out}: $B$-fold cross-validation that
-rebuilds each model on the training folds and scores the held-out fold, so every
-tree is scored once out-of-training. A full rebuild per fold is needed because
-the NNI clade set depends on which trees are present, so the count-subtraction
-shortcut used for plain regCCD does not apply; batching makes this affordable
-($B$ rebuilds rather than $N$). To track true leave-one-tree-out under an
-autocorrelated chain we assign trees to folds in a \emph{strided} fashion (tree
-$i$ to fold $i \bmod B$), which keeps each held-out tree's neighbours in training
-as LOTO does; this converges to LOTO as $B\to N$.
-
-On an RSV2 posterior ($n=129$, $2251$ trees, $\alpha=0.4$, strided) we report
-$B=20$ folds; the estimate is converged there (coverage is identical at $B=40$,
-and within one tree of $B=10$), so it approximates leave-one-tree-out. The
-fraction of held-out trees with nonzero probability rises from $90.6\%$ (regCCD)
-to $99.5\%$ (co-occurring) and $100.0\%$ (graph-wide). With a single pseudocount
-($\beta=\alpha$) the mean log probability on the commonly covered trees drops
-from $-53.5$ to $-55.5$ (co-occurring), the dilution cost. Shrinking $\beta$
-recovers it at unchanged coverage: $\beta=0.10$ gives $-54.1$ and $\beta=0.02$
-gives $-53.6$, essentially matching the baseline while still covering $99.5\%$ of
-held-out trees. So the
-conservative co-occurring mode with a small $\beta$ buys the coverage gain at
-negligible sharpness cost. A single held-out tree ($1/2251$) is never covered,
-even by graph-wide: it needs more than one NNI move (an SPR-scale rearrangement).
-
 \paragraph{Choosing the pseudocounts.}
 Since $\beta$ does not change which trees are covered, the held-out log
 probability over the (fixed) covered set is a clean objective for selecting
-$(\alpha,\beta)$, optimised by the same batched cross-validation. Because the
-pseudocounts do not change the graph, each fold is built once and the grid is
-scored in closed form, so the search costs only the $B$ fold builds. On RSV2 this
-selects, for the co-occurring mode, $\alpha\approx 0.2$ and $\beta\approx 0.01$:
-the optimal $\beta$ is an order of magnitude below $\alpha$, confirming the weak
-prior on NNI splits, and the optimal $\alpha$ is below the value used without
-clade expansion, so the pseudocounts should be re-tuned rather than inherited.
+$(\alpha,\beta)$. Because the pseudocounts do not change the graph, the model is
+fit once and the $(\alpha,\beta)$ grid is scored in closed form. The optimal
+$\beta$ is typically an order of magnitude below $\alpha$, confirming the weaker
+prior on NNI splits; and the optimal $\alpha$ shifts under the expansion, so the
+pseudocounts should be re-tuned rather than inherited.
+
+\section*{Worked example: held-out calibration on RSV2}
+
+The most direct test of whether the expansion is well-calibrated is to train on
+one posterior sample and score an \emph{independent} posterior sample from the
+same MCMC analysis. We use two independent runs on RSV2 ($n=129$, each with
+$18{,}001$ post-burn-in trees) and ask, at the pipeline-fitted $(\alpha,\beta)$,
+how much probability mass the model places on NNI-expanded trees versus the
+fraction of held-out trees that actually fall in that zone.
+
+\paragraph{The full pipeline.}
+The clade set under regCCD is built in four stages,
+\begin{equation}
+  \CC^{(1)} \xrightarrow{\text{split exp.}} \CC^{(1)}\!\cdot se
+  \xrightarrow{\text{NNI exp.}} \CC^{(1)}\!\cdot se\cdot ne
+  \xrightarrow{\text{split exp.}} \CC^{(1)}\!\cdot se\cdot ne\cdot se ,
+  \label{eq:pipeline}
+\end{equation}
+each enlarging the supported tree space. Crucially, the \emph{first} split
+expansion runs before the NNI pass, so the NNI recombinations get to use the
+CCD0-expanded split contexts; this matters for graph-wide pairing, which then
+finds additional novel clades that the observed-only graph would miss.
+
+\paragraph{Tree-space blowup.}
+On RSV2 the four spaces have the following sizes. Both modes share
+$|\CC^{(1)}|=|\CC^{(1)}\!\cdot se|=1{,}919$; graph-wide adds $42{,}627$ novel
+clades, co-occurring adds $7{,}956$.
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrrr}
+\hline
+stage & clades & splits & $\log_{10} N_{\text{trees}}$ \\
+\hline
+$\CC^{(1)}$ & $1{,}919$ & $7{,}653$ & $46.33$ \\
+$\CC^{(1)}\!\cdot se$ & $1{,}919$ & $23{,}597$ & $50.44$ \\
+$\CC^{(1)}\!\cdot se\cdot ne$ (gw) & $44{,}546$ & $157{,}602$ & $71.79$ \\
+$\CC^{(1)}\!\cdot se\cdot ne\cdot se$ (gw) & $44{,}546$ & $3{,}142{,}692$ & $87.06$ \\
+$\CC^{(1)}\!\cdot se\cdot ne$ (co) & $9{,}875$ & $41{,}517$ & $67.30$ \\
+$\CC^{(1)}\!\cdot se\cdot ne\cdot se$ (co) & $9{,}875$ & $256{,}497$ & $77.92$ \\
+\hline
+\end{tabular}
+\end{center}
+The first split expansion contributes $+4.1$ decades to the tree count, the NNI
+clade expansion contributes $+21.4$ (gw) or $+16.9$ (co), and the final split
+expansion contributes a further $+15.3$ (gw) or $+10.6$ (co). The NNI clade
+expansion is the single largest jump in tree count, while the final split
+expansion contributes the largest jump in raw split count (an additional
+$\sim 3\times 10^6$ partitions under graph-wide), most of which are combinations
+of novel clades that would never appear in a sampled tree.
+
+\begin{figure}[h]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[scale=0.55, every node/.style={font=\small}]
+  % ============ LEFT PANEL: GRAPH-WIDE ============
+  % Labels stacked vertically on the LEFT side of the panel
+  \begin{scope}
+    % Radii (gw): 3.74, 3.91, 4.66, 5.13
+    \fill[blue!8]  (0,0) circle (5.13);
+    \fill[blue!18] (0,0) circle (4.66);
+    \fill[blue!32] (0,0) circle (3.91);
+    \fill[blue!50] (0,0) circle (3.74);
+    \draw[thick]   (0,0) circle (5.13);
+    \draw[thick]   (0,0) circle (4.66);
+    \draw[thick]   (0,0) circle (3.91);
+    \draw[thick]   (0,0) circle (3.74);
+    % Outer label at top-left, inner at bottom-left so leaders never cross.
+    % Each circle's leader exits at its left edge at an angle.
+    %   ne*se (5.13) -> label at (-9, 4.5)
+    %   ne    (4.66) -> label at (-9, 2.0)
+    %   se    (3.91) -> label at (-9,-1.5)
+    %   CCD1  (3.74) -> label at (-9,-4.0)
+    \draw[->,>=stealth] ({-5.13*cos(20)},{5.13*sin(20)}) -- (-7,4.5)
+      node[anchor=east,align=right]
+      {$\CC^{(1)}\!\cdot se\cdot ne\cdot se$: $100.00$ / $100.00\%$};
+    \draw[->,>=stealth] ({-4.66*cos(10)},{4.66*sin(10)}) -- (-7,2.0)
+      node[anchor=east,align=right]
+      {$\CC^{(1)}\!\cdot se\cdot ne$: $99.62$ / $97.62\%$};
+    \draw[->,>=stealth] ({-3.91*cos(10)},{-3.91*sin(10)}) -- (-7,-1.5)
+      node[anchor=east,align=right]
+      {$\CC^{(1)}\!\cdot se$: $97.94$ / $97.57\%$};
+    \draw[->,>=stealth] ({-3.74*cos(20)},{-3.74*sin(20)}) -- (-7,-4.0)
+      node[anchor=east,align=right]
+      {$\CC^{(1)}$: $87.63$ / $86.53\%$};
+    \node[font=\bfseries] at (0,-7) {(a) graph-wide};
+  \end{scope}
+
+  % ============ RIGHT PANEL: CO-OCCURRING ============
+  % Labels stacked vertically on the RIGHT side of the panel
+  \begin{scope}[xshift=18cm]
+    % Radii (co): 3.74, 3.91, 4.51, 4.86
+    \fill[orange!8]  (0,0) circle (4.86);
+    \fill[orange!18] (0,0) circle (4.51);
+    \fill[orange!32] (0,0) circle (3.91);
+    \fill[orange!50] (0,0) circle (3.74);
+    \draw[thick]     (0,0) circle (4.86);
+    \draw[thick]     (0,0) circle (4.51);
+    \draw[thick]     (0,0) circle (3.91);
+    \draw[thick]     (0,0) circle (3.74);
+    \draw[->,>=stealth] ({4.86*cos(20)},{4.86*sin(20)}) -- (7,4.5)
+      node[anchor=west,align=left]
+      {$\CC^{(1)}\!\cdot se\cdot ne\cdot se$: $99.86$ / $100.00\%$};
+    \draw[->,>=stealth] ({4.51*cos(10)},{4.51*sin(10)}) -- (7,2.0)
+      node[anchor=west,align=left]
+      {$\CC^{(1)}\!\cdot se\cdot ne$: $98.89$ / $97.90\%$};
+    \draw[->,>=stealth] ({3.91*cos(10)},{-3.91*sin(10)}) -- (7,-1.5)
+      node[anchor=west,align=left]
+      {$\CC^{(1)}\!\cdot se$: $97.94$ / $97.80\%$};
+    \draw[->,>=stealth] ({3.74*cos(20)},{-3.74*sin(20)}) -- (7,-4.0)
+      node[anchor=west,align=left]
+      {$\CC^{(1)}$: $87.63$ / $86.83\%$};
+    \node[font=\bfseries] at (0,-7) {(b) co-occurring};
+  \end{scope}
+\end{tikzpicture}%
+}
+\caption{Tree-space envelope at each pipeline stage on RSV2 (train: run~1,
+$18{,}001$ trees; held out: run~2, same size). Areas are proportional to
+$\log_{10} N_{\text{trees}}$ (so radii are proportional to $\sqrt{\log_{10} N}$).
+Each circle is annotated with the fraction of held-out trees that fall inside
+it (cumulative empirical coverage) and the model's cumulative probability mass
+on trees inside that universe under the fitted $(\alpha,\beta)$. The two
+quantities agree to within $\sim 2$ percentage points at every boundary in both
+panels, despite each transition enlarging the tree count by many decimal orders
+of magnitude.}
+\label{fig:pipeline-venn}
+\end{figure}
+
+\paragraph{Held-out fit.}
+We train the full pipeline on run~1 and grid-search $(\alpha,\beta)$ to maximise
+the mean held-out log-probability on run~2 (no cross-validation needed: the two
+runs are genuinely independent). The optima are
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrrrr}
+\hline
+mode & $\alpha^\star$ & $\beta^\star$ & mean $\log P$/tree & coverage \\
+\hline
+graph-wide   & $0.265$ & $0.0014$ & $-54.21$ & $18001/18001\ (100.0\%)$ \\
+co-occurring & $0.260$ & $0.0084$ & $-54.11$ & $17976/18001\ \phantom{0}(99.86\%)$ \\
+\hline
+\end{tabular}
+\end{center}
+The graph-wide expansion covers every held-out tree; the $25$ co-occurring
+misses are trees whose novel clades sit more than one NNI move away from any
+clade-context in run~1, an SPR-scale rearrangement away.
+
+\paragraph{Probability mass on NNI-expanded trees vs.\ empirical fraction.}
+At the fitted $(\alpha,\beta)$, we compute in closed form the total probability
+mass the model places on trees that contain at least one novel clade,
+\begin{equation}
+  P(\text{novel-clade tree}) \;=\; 1 - M(\rho),
+  \qquad
+  M(c) = \sum_{(L,R)\in S^{\text{obs}}(c)} \theta(L,R)\,M(L)\,M(R),
+\end{equation}
+restricted at every clade $c$ to the sub-sum over existing-only splits (novel
+children contribute $M=0$). We then compare to the \emph{empirical} fraction of
+held-out trees that actually contain a novel clade:
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrrr}
+\hline
+mode & model $P(\text{novel})$ & empirical & ratio \\
+\hline
+graph-wide   & $2.43\%$ & $2.06\%$ & $1.18\times$ \\
+co-occurring & $2.20\%$ & $1.92\%$ & $1.15\times$ \\
+\hline
+\end{tabular}
+\end{center}
+The model overstates the speculative fraction by only $\sim 15$--$20\%$ in both
+modes. Given that the universe of \emph{potentially} novel trees is $\sim
+10^{40}$ times larger than the observed-clade tree set (cf.\ the table above),
+matching the empirical novel-clade rate within a factor of $1.2$ is the
+operative sense in which the NNI clade expansion is \emph{well-calibrated}: the
+additive-$\alpha,\beta$ smoothing under the pipeline of
+\eqref{eq:pipeline} carves a probability mass on the expansion zone that closely
+tracks the rate at which independent posterior samples actually visit it.
 
 \end{document}

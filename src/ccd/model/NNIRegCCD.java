@@ -28,13 +28,15 @@ import java.util.List;
  * </p>
  *
  * <p>
- * Pipeline (NNI clade expansion happens before split expansion so that only
- * observed splits are recombined):
+ * Pipeline:
  * <ol>
  * <li>build the CCD1 graph from the trees;</li>
+ * <li>split expansion ({@link CCDExpansion}) over observed clades, so NNI sees
+ * the full set of compatible observed-clade splits as recombination contexts;</li>
  * <li>NNI clade expansion ({@link PairingMode}) --- add novel clades and their
  * NNI-implied splits;</li>
- * <li>split expansion ({@link CCDExpansion}) over all clades;</li>
+ * <li>split expansion ({@link CCDExpansion}) over all clades, now including
+ * compatible splits involving the novel clades;</li>
  * <li>additive-{@code alpha} regularisation;</li>
  * <li>finalise deterministic single-split novel clades.</li>
  * </ol>
@@ -115,11 +117,17 @@ public class NNIRegCCD extends RegCCD {
     }
 
     private void nniPostConstruction() {
-        // 1. NNI clade expansion on the observed graph (adds novel clades + NNI splits)
+        // 1. split expansion among observed clades, so NNI has the full set of
+        //    compatible observed-clade splits to recombine (GRAPH_WIDE picks up
+        //    novel clades from CCD0-expanded contexts that CCD1 would miss; for
+        //    CO_OCCURRING the enumeration walks base trees and is unaffected)
+        new CCDExpansion().expandCCD(this);
+
+        // 2. NNI clade expansion on the split-expanded observed graph
         cladeExpander = new NNICladeExpander(pairingMode);
         cladeExpander.expandClades(this);
 
-        // 2. split expansion over all clades (observed + novel), as in plain regCCD
+        // 3. split expansion over all clades (observed + novel), as in plain regCCD
         new CCDExpansion().expandCCD(this);
 
         // 3. regularisation over the full graph: single-alpha, or two-level alpha/beta

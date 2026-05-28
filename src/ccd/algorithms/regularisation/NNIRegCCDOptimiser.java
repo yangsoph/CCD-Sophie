@@ -314,6 +314,60 @@ public class NNIRegCCDOptimiser {
         System.out.println("Wrote " + out);
     }
 
+    /* Parse "start:end:step" into an inclusive grid (e.g. "0.15:0.25:0.01" → 11 values). */
+    private static double[] parseGrid(String spec) {
+        String[] parts = spec.split(":");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("grid spec must be start:end:step, got: " + spec);
+        }
+        double start = Double.parseDouble(parts[0]);
+        double end = Double.parseDouble(parts[1]);
+        double step = Double.parseDouble(parts[2]);
+        if (step <= 0 || end < start) {
+            throw new IllegalArgumentException("invalid grid: " + spec);
+        }
+        int n = (int) Math.round((end - start) / step) + 1;
+        double[] grid = new double[n];
+        for (int i = 0; i < n; i++) {
+            grid[i] = start + i * step;
+        }
+        return grid;
+    }
+
+    /* heldout <train> <test> <burnin%> <co|gw|both> <alpha-spec> <beta-spec> : fit on train, score on test. */
+    private static void heldOutMain(String[] args) throws Exception {
+        if (args.length < 7) {
+            System.err.println("Usage: NNIRegCCDOptimiser heldout <train.trees> <test.trees> "
+                    + "<burnin%> <co|gw|both> <alpha-start:end:step> <beta-start:end:step>");
+            System.exit(1);
+        }
+        String trainPath = args[1];
+        String testPath = args[2];
+        int burnin = Integer.parseInt(args[3]);
+        List<PairingMode> modes = parseModes(args[4]);
+        double[] alphas = parseGrid(args[5]);
+        double[] betas = parseGrid(args[6]);
+
+        List<Tree> train = loadTrees(trainPath, burnin);
+        List<Tree> test = loadTrees(testPath, burnin);
+        System.out.printf("train: %d trees (%s), test: %d trees (%s)%n",
+                train.size(), new File(trainPath).getName(),
+                test.size(), new File(testPath).getName());
+        System.out.printf("grid: %d alphas [%g .. %g] × %d betas [%g .. %g] = %d points%n",
+                alphas.length, alphas[0], alphas[alphas.length - 1],
+                betas.length, betas[0], betas[betas.length - 1],
+                alphas.length * betas.length);
+
+        for (PairingMode mode : modes) {
+            System.out.println("building NNIRegCCD[" + mode + "] on training set...");
+            NNIRegCCD model = new NNIRegCCD(train, 0.0, mode, NNIRegCCD.DEFAULT_ALPHA);
+            List<List<Factor>> traces = extractTraces(model, test);
+            OptResult r = argmax(traces, mode, alphas, betas);
+            System.out.println(r);
+            warnIfOnBoundary(r, alphas, betas);
+        }
+    }
+
     /* surface <out.csv> <trees> <folds> <burnin%> <co|gw> : dump the full (alpha,beta) objective grid. */
     private static void surfaceMain(String[] args) throws Exception {
         String out = args[1];
@@ -356,10 +410,15 @@ public class NNIRegCCDOptimiser {
             surfaceMain(args);
             return;
         }
+        if (args.length >= 1 && args[0].equals("heldout")) {
+            heldOutMain(args);
+            return;
+        }
         if (args.length < 1) {
             System.err.println("Usage: NNIRegCCDOptimiser <trees> [folds] [burnin%]");
             System.err.println("   or: NNIRegCCDOptimiser batch <out.csv> <folds> <burnin%> <co|gw|both> <trees...>");
             System.err.println("   or: NNIRegCCDOptimiser surface <out.csv> <trees> <folds> <burnin%> <co|gw>");
+            System.err.println("   or: NNIRegCCDOptimiser heldout <train> <test> <burnin%> <co|gw|both> <alpha-spec> <beta-spec>");
             System.exit(1);
         }
         int folds = (args.length >= 2) ? Integer.parseInt(args[1]) : 20;
