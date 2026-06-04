@@ -3,6 +3,7 @@ package ccd.algorithms.regularisation;
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.NNICladeExpansion.PairingMode;
+import ccd.model.KRegCCD;
 import ccd.model.NNIRegCCD;
 import ccd.model.RegCCD;
 import ccd.tools.CCDToolUtil;
@@ -95,6 +96,14 @@ public class NNIHeldOutComparison {
         for (double beta : new double[]{alpha / 4, alpha / 20}) {
             specs.add(new ModelSpec(String.format("NNIRegCCD[CO_OCCURRING,b=%.3f]", beta),
                     tr -> new NNIRegCCD(tr, 0.0, PairingMode.CO_OCCURRING, alpha, beta)));
+        }
+        // full-support KRegCCD; k = reserve depth used to estimate eps (coverage
+        // is 100% regardless of k)
+        for (int k : new int[]{1, 2}) {
+            for (double mu : new double[]{0.01, 0.05, 0.1, 0.2}) {
+                specs.add(new ModelSpec(String.format("KRegCCD[rd=%d,mu=%.2f]", k, mu),
+                        tr -> new KRegCCD(tr, 0.0, mu, alpha, k)));
+            }
         }
         return specs;
     }
