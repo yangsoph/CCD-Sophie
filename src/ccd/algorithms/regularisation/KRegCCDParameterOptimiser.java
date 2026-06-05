@@ -62,9 +62,13 @@ public class KRegCCDParameterOptimiser {
     private static final double ALPHA_HI = 2.0;
     private static final double ALPHA_START = KRegCCD.DEFAULT_ALPHA;
 
-    /* mu grid: log-spaced over a range spanning negligible to heavy escape. */
+    /* mu grid: log-spaced from negligible escape up to the reliability ceiling. The upper bound is
+     * KRegCCD.MU_RELIABLE_MAX, not larger: above it the depth-k reserve approximation breaks down
+     * (the omitted tail grows ~mu^3), and because the held-out objective is scored with tail = 0
+     * (NONE) that breakdown inflates the score ~mu^3 -- which would bias the search toward large
+     * mu. Searching beyond the ceiling is therefore both invalid and misleading. */
     private static final double MU_LO = 1e-3;
-    private static final double MU_HI = 0.5;
+    private static final double MU_HI = KRegCCD.MU_RELIABLE_MAX;
     private static final int MU_GRID = 41;
 
     private static final int MAX_ALPHA_EVALS = 60;
@@ -123,6 +127,12 @@ public class KRegCCDParameterOptimiser {
         System.out.println(String.format(
                 "KRegCCD optimised: alpha = %.5f, mu = %.5f, held-out logP = %.5f",
                 alphaStar, best[0], best[1]));
+        if (best[0] >= MU_HI * (1 - 1e-9)) {
+            System.err.println("WARNING: held-out probability is still increasing in mu at the "
+                    + "reliability ceiling mu = " + MU_HI + " (KRegCCD.MU_RELIABLE_MAX); the data "
+                    + "wants more escape mass than the depth-k approximation can validly provide. "
+                    + "Treat mu = " + MU_HI + " as a capped estimate, not an interior optimum.");
+        }
         return new Params(alphaStar, best[0], best[1]);
     }
 

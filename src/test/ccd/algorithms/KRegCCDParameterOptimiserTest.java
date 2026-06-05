@@ -79,14 +79,17 @@ public class KRegCCDParameterOptimiserTest {
                 trees, 4, FoldAssignment.STRIDED, p.alpha(), p.mu());
         assertEquals(p.heldOutLogProb(), atOptimum, 1e-6, "reported objective must be reproducible");
 
+        // compare against the two ends of the searched (valid) mu range
         double atTinyMu = KRegCCDParameterOptimiser.crossValidatedLogProb(
                 trees, 4, FoldAssignment.STRIDED, p.alpha(), 1e-3);
-        double atLargeMu = KRegCCDParameterOptimiser.crossValidatedLogProb(
-                trees, 4, FoldAssignment.STRIDED, p.alpha(), 0.5);
+        double atCeilingMu = KRegCCDParameterOptimiser.crossValidatedLogProb(
+                trees, 4, FoldAssignment.STRIDED, p.alpha(), KRegCCD.MU_RELIABLE_MAX);
         assertTrue(atOptimum >= atTinyMu - 1e-9,
                 "mu* should be at least as good as a near-zero mu (" + atOptimum + " vs " + atTinyMu + ")");
-        assertTrue(atOptimum >= atLargeMu - 1e-9,
-                "mu* should be at least as good as a large mu (" + atOptimum + " vs " + atLargeMu + ")");
+        assertTrue(atOptimum >= atCeilingMu - 1e-9,
+                "mu* should be at least as good as the ceiling mu (" + atOptimum + " vs " + atCeilingMu + ")");
+        assertTrue(p.mu() <= KRegCCD.MU_RELIABLE_MAX + 1e-9,
+                "mu* must not exceed the reliability ceiling, got " + p.mu());
     }
 
     /**

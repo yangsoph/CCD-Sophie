@@ -103,8 +103,16 @@ public class KRegCCD extends RegCCD {
 
     private final TailMode tailMode;
 
+    /**
+     * Largest {@code mu} at which the depth-{@code k} reserve approximation stays reliable. Above
+     * it the omitted reserve tail grows ~{@code mu^3} and the un-corrected (NONE) inflation becomes
+     * material (&gt; ~0.01 nat/tree), so the model should not be operated — nor its parameters
+     * searched (see {@link ccd.algorithms.regularisation.KRegCCDParameterOptimiser}) — beyond it.
+     */
+    public static final double MU_RELIABLE_MAX = 0.05;
+
     /** mu above which the un-corrected inflation becomes material (&gt; ~0.01 nat). */
-    private static final double MU_WARN_THRESHOLD = 0.05;
+    private static final double MU_WARN_THRESHOLD = MU_RELIABLE_MAX;
 
     /** Knuth samples per order when estimating the tail (SAMPLED mode). */
     private static final int TAIL_SAMPLES = 1000;
