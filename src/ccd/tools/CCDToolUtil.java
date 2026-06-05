@@ -72,6 +72,24 @@ public class CCDToolUtil {
         return ccd;
     }
 
+    /**
+     * Materialises all trees of a (burn-in-free) tree set into a list, e.g. for cross-validation
+     * that needs to partition the trees.
+     *
+     * @param treeSet the tree set to read
+     * @return all of its trees, in order
+     * @throws IOException if the underlying tree file cannot be read
+     */
+    public static java.util.List<beast.base.evolution.tree.Tree> treesFromSet(
+            TreeAnnotator.MemoryFriendlyTreeSet treeSet) throws IOException {
+        java.util.List<beast.base.evolution.tree.Tree> trees = new java.util.ArrayList<>();
+        treeSet.reset();
+        while (treeSet.hasNext()) {
+            trees.add(treeSet.next());
+        }
+        return trees;
+    }
+
     public static AbstractCCD getCCDTypeByName(TreeAnnotator.MemoryFriendlyTreeSet treeSet, CCDType ccdType) {
         AbstractCCD ccd;
         if (ccdType == CCDType.CCD0) {

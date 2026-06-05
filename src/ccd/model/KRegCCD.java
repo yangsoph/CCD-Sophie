@@ -3,6 +3,7 @@ package ccd.model;
 import beast.base.evolution.tree.Node;
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;
+import ccd.algorithms.regularisation.KRegCCDParameterOptimiser;
 import ccd.model.bitsets.BitSet;
 
 import java.util.ArrayList;
@@ -236,6 +237,25 @@ public class KRegCCD extends RegCCD {
         regulariseRegCCD(alpha);
     }
 
+    /**
+     * Builds a KRegCCD on {@code trees} with {@code (alpha, mu)} selected by maximising
+     * cross-validated held-out tree log-probability (see {@link KRegCCDParameterOptimiser}),
+     * rather than using the fixed {@link #DEFAULT_MU}/{@link #DEFAULT_ALPHA}. Reserve depth is
+     * {@link #DEFAULT_RESERVE_DEPTH} and the tail correction is {@link TailMode#BOUND}.
+     *
+     * @param trees the trees the model is built on and cross-validated over
+     * @param folds number of cross-validation folds
+     */
+    public static KRegCCD withOptimisedParameters(List<Tree> trees, int folds) {
+        KRegCCDParameterOptimiser.Params p = KRegCCDParameterOptimiser.optimise(trees, folds);
+        return new KRegCCD(trees, 0.0, p.mu(), p.alpha(), DEFAULT_RESERVE_DEPTH, TailMode.BOUND);
+    }
+
+    /** As {@link #withOptimisedParameters(List, int)} with {@link KRegCCDParameterOptimiser#DEFAULT_FOLDS} folds. */
+    public static KRegCCD withOptimisedParameters(List<Tree> trees) {
+        return withOptimisedParameters(trees, KRegCCDParameterOptimiser.DEFAULT_FOLDS);
+    }
+
     private static void validateParams(double mu, int k, double alpha) {
         if (mu <= 0 || mu >= 1) {
             throw new IllegalArgumentException("mu must be in (0, 1), got " + mu);
@@ -269,7 +289,27 @@ public class KRegCCD extends RegCCD {
         Map<Node, BitSet> bits = new HashMap<>();
         computeBits(tree.getRoot(), bits);
         double[] logp = new double[]{0.0};
-        scoreFresh(tree.getRoot(), bits, logp);
+        scoreFresh(tree.getRoot(), bits, logp, mu, true);
+        return logp[0];
+    }
+
+    /**
+     * Full-support log-probability of a tree at an arbitrary escape probability {@code scoreMu},
+     * reusing this model's ({@code mu}-independent) clade/split backbone and cached per-clade
+     * {@code N_j} counts. Scored with no reserve-tail correction (tail = 0, i.e.
+     * {@link TailMode#NONE} semantics), which is the objective used to select {@code mu}. This
+     * lets a parameter optimiser evaluate many {@code mu} values on one trained backbone without
+     * rebuilding — {@code eps(C)} is just re-solved from the cached counts. For
+     * {@code scoreMu == mu} and a {@code NONE}-built model it equals {@link #getLogProbabilityOfTree(Tree)}.
+     */
+    public double getLogProbabilityOfTree(Tree tree, double scoreMu) {
+        if (scoreMu <= 0 || scoreMu >= 1) {
+            throw new IllegalArgumentException("scoreMu must be in (0, 1), got " + scoreMu);
+        }
+        Map<Node, BitSet> bits = new HashMap<>();
+        computeBits(tree.getRoot(), bits);
+        double[] logp = new double[]{0.0};
+        scoreFresh(tree.getRoot(), bits, logp, scoreMu, false);
         return logp[0];
     }
 
@@ -355,7 +395,15 @@ public class KRegCCD extends RegCCD {
         return b;
     }
 
-    private void scoreFresh(Node v, Map<Node, BitSet> bits, double[] logp) {
+    /**
+     * Scores the subtree at {@code v} at escape probability {@code scoreMu}.
+     * {@code useStoredReg} controls the source of the per-clade reserve: when {@code true}
+     * (the {@code scoreMu == mu} path) it uses the cached {@code eps}/{@code tail} solved at
+     * construction; when {@code false} it re-solves {@code eps} from the cached {@code N_j} at
+     * {@code scoreMu} with tail = 0 (the held-out / mu-search path).
+     */
+    private void scoreFresh(Node v, Map<Node, BitSet> bits, double[] logp,
+                            double scoreMu, boolean useStoredReg) {
         if (v.isLeaf() || logp[0] == Double.NEGATIVE_INFINITY) {
             return;
         }
@@ -367,12 +415,13 @@ public class KRegCCD extends RegCCD {
             Clade c = getClade(vb);
             CladeReg reg = computeReg(c);
             if (reg.reservable()) {
-                // tail = 0 for NONE -> plain (1 - mu); otherwise (1 - mu - tail)
-                logp[0] += Math.log(1.0 - mu - reg.tail());
+                // tail = 0 for NONE / the mu-search path -> plain (1 - mu); otherwise (1 - mu - tail)
+                double tail = useStoredReg ? reg.tail() : 0.0;
+                logp[0] += Math.log(1.0 - scoreMu - tail);
             }
             logp[0] += rawLogCCP(c, bits.get(c1), bits.get(c2));
-            scoreFresh(c1, bits, logp);
-            scoreFresh(c2, bits, logp);
+            scoreFresh(c1, bits, logp, scoreMu, useStoredReg);
+            scoreFresh(c2, bits, logp, scoreMu, useStoredReg);
         } else {
             // v is the top of a maximal blue region. No truncation: every region
             // is scored, so any tree gets nonzero probability (full support).
@@ -385,19 +434,29 @@ public class KRegCCD extends RegCCD {
                 parts[i] = bits.get(boundary.get(i));
             }
             int pathcount = countAllNovelResolutions(vb, parts);
-            double logEps = computeReg(c).logEps();
+            double logEps = useStoredReg ? computeReg(c).logEps() : logEpsAtMu(c, scoreMu);
             if (logEps == Double.NEGATIVE_INFINITY) {
                 // C reserves nothing computable: give this region fallback mass
                 // mu/pathcount (treat its own boundary as the sole reservation)
-                logp[0] += Math.log(mu) - Math.log(pathcount);
+                logp[0] += Math.log(scoreMu) - Math.log(pathcount);
             } else {
                 // m - 2 = number of novel clades in this region: one log eps each
                 logp[0] += (m - EXP_REDUCTION) * logEps - Math.log(pathcount);
             }
             for (Node b : boundary) {
-                scoreFresh(b, bits, logp);
+                scoreFresh(b, bits, logp, scoreMu, useStoredReg);
             }
         }
+    }
+
+    /** Re-solves {@code log eps(C)} from the cached ({@code mu}-independent) {@code N_j} counts at
+     * an arbitrary {@code scoreMu}; {@code NEGATIVE_INFINITY} if {@code C} reserves nothing. */
+    private double logEpsAtMu(Clade c, double scoreMu) {
+        CladeReg reg = computeReg(c);
+        if (!reg.reservable()) {
+            return Double.NEGATIVE_INFINITY;
+        }
+        return solveLogEps(reg.nCounts(), reg.lastBoundary(), scoreMu);
     }
 
     private void collectRegion(Node v, Map<Node, BitSet> bits, List<Node> boundary) {
