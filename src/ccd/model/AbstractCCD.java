@@ -936,69 +936,90 @@ public abstract class AbstractCCD implements ITreeDistribution {
             Node secondChild = getVertexBasedOnStrategy(partition.getChildClades()[1],
                     samplingStrategy, heightStrategy);
 
-            // These are not needed and only make the output newick longer
-            vertex = new Node();
-            vertex.setNr(runningInnerIndex++);
-            double cladeProbability = clade.getProbability();
-            vertex.setMetaData(CLADE_SUPPORT_KEY, cladeProbability);
-            String posteriorSupport = CLADE_SUPPORT_KEY + "=" + cladeProbability;
-            if (vertex.metaDataString != null) {
-                vertex.metaDataString += "," + posteriorSupport;
-            } else {
-                vertex.metaDataString = posteriorSupport;
+            vertex = buildInternalVertex(clade, partition, firstChild, secondChild, heightStrategy);
+        }
+
+        return vertex;
+    }
+
+    /**
+     * Builds an internal (non-leaf) vertex for the two already-constructed child subtrees of
+     * the given {@code clade}, resolved through {@code partition}. Assigns the next inner-node
+     * number, attaches clade-support and (log-)subtree-probability metadata, and sets the height
+     * per the {@link HeightSettingStrategy}. Factored out of {@link #getVertexBasedOnStrategy}
+     * so subclasses (e.g. {@code KRegCCD}) can reuse the exact same observed-split construction
+     * while overriding the recursion.
+     */
+    protected Node buildInternalVertex(Clade clade, CladePartition partition,
+                                       Node firstChild, Node secondChild,
+                                       HeightSettingStrategy heightStrategy) {
+        // These are not needed and only make the output newick longer
+        Node vertex = new Node();
+        vertex.setNr(nextRunningInnerIndex());
+        double cladeProbability = clade.getProbability();
+        vertex.setMetaData(CLADE_SUPPORT_KEY, cladeProbability);
+        String posteriorSupport = CLADE_SUPPORT_KEY + "=" + cladeProbability;
+        if (vertex.metaDataString != null) {
+            vertex.metaDataString += "," + posteriorSupport;
+        } else {
+            vertex.metaDataString = posteriorSupport;
+        }
+        vertex.addChild(firstChild);
+        vertex.addChild(secondChild);
+
+        // attach probability information
+        Double p = (Double) firstChild.getMetaData(PROB_SUBTREE_KEY)
+                * (Double) secondChild.getMetaData(PROB_SUBTREE_KEY)
+                * partition.getCCP();
+        Double logP = (Double) firstChild.getMetaData(LOG_PROB_SUBTREE_KEY)
+                + (Double) secondChild.getMetaData(LOG_PROB_SUBTREE_KEY)
+                + partition.getLogCCP();
+        vertex.setMetaData(PROB_SUBTREE_KEY, p);
+        vertex.setMetaData(LOG_PROB_SUBTREE_KEY, logP);
+
+        if (heightStrategy == HeightSettingStrategy.MeanOccurredHeights) {
+            vertex.setHeight(clade.getMeanOccurredHeight());
+        } else if (heightStrategy == HeightSettingStrategy.One) {
+            vertex.setHeight(computeParentHeight(partition, firstChild, secondChild));
+        } else if (heightStrategy == HeightSettingStrategy.CommonAncestorHeights) {
+            // out.println("\nvertex = " + vertex);
+            // out.println("vertex.getHeight() = " + vertex.getHeight());
+            // out.println("clade.getCommonAncestorHeight() = " + clade.getCommonAncestorHeight());
+            vertex.setHeight(clade.getCommonAncestorHeight());
+            // out.println("vertex.getHeight() = " + vertex.getHeight());
+
+            if (Double.isNaN(clade.getCommonAncestorHeight())) {
+                System.err.println("\nNaN height!");
+                System.err.println("clade = " + clade);
+                System.err.println("clade.getCommonAncestorHeight() = " + clade.getCommonAncestorHeight());
             }
-            vertex.addChild(firstChild);
-            vertex.addChild(secondChild);
 
-            // attach probability information
-            Double p = (Double) firstChild.getMetaData(PROB_SUBTREE_KEY)
-                    * (Double) secondChild.getMetaData(PROB_SUBTREE_KEY)
-                    * partition.getCCP();
-            Double logP = (Double) firstChild.getMetaData(LOG_PROB_SUBTREE_KEY)
-                    + (Double) secondChild.getMetaData(LOG_PROB_SUBTREE_KEY)
-                    + partition.getLogCCP();
-            vertex.setMetaData(PROB_SUBTREE_KEY, p);
-            vertex.setMetaData(LOG_PROB_SUBTREE_KEY, logP);
-
-            if (heightStrategy == HeightSettingStrategy.MeanOccurredHeights) {
-                vertex.setHeight(clade.getMeanOccurredHeight());
-            } else if (heightStrategy == HeightSettingStrategy.One) {
-                vertex.setHeight(computeParentHeight(partition, firstChild, secondChild));
-            } else if (heightStrategy == HeightSettingStrategy.CommonAncestorHeights) {
-                // out.println("\nvertex = " + vertex);
-                // out.println("vertex.getHeight() = " + vertex.getHeight());
-                // out.println("clade.getCommonAncestorHeight() = " + clade.getCommonAncestorHeight());
-                vertex.setHeight(clade.getCommonAncestorHeight());
-                // out.println("vertex.getHeight() = " + vertex.getHeight());
-
-                if (Double.isNaN(clade.getCommonAncestorHeight())) {
-                    System.err.println("\nNaN height!");
-                    System.err.println("clade = " + clade);
-                    System.err.println("clade.getCommonAncestorHeight() = " + clade.getCommonAncestorHeight());
-                }
-
-                if (vertex.getHeight() < 0) {
-                    System.err.println("\nVertex with negative height");
-                    System.err.println("vertex.getHeight() = " + vertex.getHeight());
-                    System.err.println("clade.getCommonAncestorHeight =  " + clade.getCommonAncestorHeight());
-                    System.err.println("clade.getMeanOccurredHeight =  " + clade.getMeanOccurredHeight());
-                }
-                if ((vertex.getHeight() - vertex.getLeft().getHeight()) < 0) {
-                    System.err.println("\nNegative branch length, L");
-                    System.err.println("branchLength = " + (vertex.getHeight() - vertex.getLeft().getHeight()));
-                    System.err.println("parent = " + vertex);
-                    System.err.println("childL = " + vertex.getLeft());
-                }
-                if ((vertex.getHeight() - vertex.getRight().getHeight()) < 0) {
-                    System.err.println("\nNegative branch length, R");
-                    System.err.println("branchLength = " + (vertex.getHeight() - vertex.getLeft().getHeight()));
-                    System.err.println("parent = " + vertex);
-                    System.err.println("childR = " + vertex.getRight());
-                }
+            if (vertex.getHeight() < 0) {
+                System.err.println("\nVertex with negative height");
+                System.err.println("vertex.getHeight() = " + vertex.getHeight());
+                System.err.println("clade.getCommonAncestorHeight =  " + clade.getCommonAncestorHeight());
+                System.err.println("clade.getMeanOccurredHeight =  " + clade.getMeanOccurredHeight());
+            }
+            if ((vertex.getHeight() - vertex.getLeft().getHeight()) < 0) {
+                System.err.println("\nNegative branch length, L");
+                System.err.println("branchLength = " + (vertex.getHeight() - vertex.getLeft().getHeight()));
+                System.err.println("parent = " + vertex);
+                System.err.println("childL = " + vertex.getLeft());
+            }
+            if ((vertex.getHeight() - vertex.getRight().getHeight()) < 0) {
+                System.err.println("\nNegative branch length, R");
+                System.err.println("branchLength = " + (vertex.getHeight() - vertex.getLeft().getHeight()));
+                System.err.println("parent = " + vertex);
+                System.err.println("childR = " + vertex.getRight());
             }
         }
 
         return vertex;
+    }
+
+    /** Returns and advances the running inner-node index used when materialising sampled trees. */
+    protected int nextRunningInnerIndex() {
+        return runningInnerIndex++;
     }
 
     /* Helper method */

@@ -112,9 +112,50 @@ public class KRegCCD extends RegCCD {
 
     private final java.util.Random rng = new java.util.Random(12345);
 
+    /**
+     * Fidelity of {@link #sampleTree()} relative to the full-support score
+     * ({@link #getLogProbabilityOfTree}).
+     * <ul>
+     *   <li>{@link #SELF_CONSISTENT}: escape with probability {@code mu} and draw blue regions
+     *       only up to the computed novelty orders (1..k, whose weights {@code N_j eps^j} sum to
+     *       {@code mu} by the eps-solve). This is exactly {@code exp(score)} with the tail set to
+     *       zero; regions deeper than {@code k} (mass ~{@code mu^3}) are never produced.</li>
+     *   <li>{@link #FULL_SUPPORT}: escape with probability {@code mu + tail} and additionally draw
+     *       the leading tail orders ({@code k+1, k+2}) via the Knuth estimator, so frequencies
+     *       approach {@code exp(getLogProbabilityOfTree)} up to an {@code O(mu^4)} truncation of
+     *       orders beyond {@code k+2}.</li>
+     * </ul>
+     * In both modes a region's boundary parts are resolved with an observed (red) split, which
+     * makes the sampled blue regions <em>maximal</em> — matching the score's region decomposition
+     * (and avoiding the over-counting a free recursion would cause). The sampling distribution is
+     * exact whenever no boundary part is itself a reserving clade (always true for trees up to ~5
+     * taxa); for larger trees it deviates from {@code exp(score)} by the boundary parts' own
+     * {@code (1 - mu - tail)} reservation, an {@code O(mu)}-per-reserving-boundary-part effect.
+     */
+    public enum SamplingFidelity {SELF_CONSISTENT, FULL_SUPPORT}
+
+    private SamplingFidelity samplingFidelity = SamplingFidelity.SELF_CONSISTENT;
+
+    /** Reservoir state for {@link #sampleBoundary}: count of valid boundaries seen so far. */
+    private int boundarySeen;
+    /** Reservoir state for {@link #sampleBoundary}: the boundary currently selected. */
+    private BitSet[] boundaryPick;
+
+    /** Strictly-positive fallback increment for novel-node heights when the region top is not
+     * strictly above a boundary part (e.g. common-ancestor-height non-monotonicity). */
+    private static final double NOVEL_HEIGHT_EPS = 1e-8;
+
     /** Per-clade reserve info: whether C reserves mu, log eps(C) (NEGATIVE_INFINITY
-     * if nothing computable), and the tail correction to subtract from (1 - mu). */
-    private record CladeReg(boolean reservable, double logEps, double tail) {
+     * if nothing computable), and the tail correction to subtract from (1 - mu).
+     *
+     * <p>{@code nCounts} caches the per-boundary partition counts used to solve eps:
+     * {@code nCounts[m]} is N_{m-2}(C) (the number of boundary-m partitions admitting an
+     * all-novel resolution), for boundaries {@code 3..lastBoundary}. The sampler reuses these
+     * to draw a region's novelty order j with probability proportional to N_j eps^j, exactly
+     * matching the score (the same counts that pinned eps). {@code null}/{@code 0} when C is
+     * not reservable. */
+    private record CladeReg(boolean reservable, double logEps, double tail,
+                            int[] nCounts, int lastBoundary) {
     }
 
     private final Map<Clade, CladeReg> regCache = new HashMap<>();
@@ -336,6 +377,406 @@ public class KRegCCD extends RegCCD {
     }
 
     /* ----------------------------------------------------------------------
+     * Tree sampling (full support)
+     *
+     * The inherited AbstractCCD sampler only ever picks an observed clade partition, so it
+     * draws from the truncated red-only distribution and can never produce a novel clade. We
+     * override the recursion so that at each reservable observed clade we either take an
+     * observed (red) split with probability 1 - mu, or escape (probability mu, or mu + tail in
+     * FULL_SUPPORT) into a blue region: a binary resolution of the clade through novel
+     * intermediate clades down to a boundary of observed subclades. The escape draw reproduces
+     * the score's blue-region weight exactly:
+     *   P(region) = escapeMass * (N_j eps^j / escapeMass) * (1/N_j) * (1/pathcount)
+     *             = eps^(m-2) / pathcount.
+     * Boundary parts are resolved red (an observed split), which makes regions maximal and the
+     * decomposition unique, matching scoreFresh's collectRegion. The PROB/LOG_PROB metadata is
+     * stamped with the same factors scoreFresh charges, so the materialised tree's stamped
+     * (log-)probability equals getLogProbabilityOfTree of that tree.
+     * ------------------------------------------------------------------- */
+
+    /** Selects how faithfully {@link #sampleTree()} reproduces the full-support score; see
+     * {@link SamplingFidelity}. Default {@link SamplingFidelity#SELF_CONSISTENT}. */
+    public void setSamplingFidelity(SamplingFidelity fidelity) {
+        this.samplingFidelity = fidelity;
+    }
+
+    public SamplingFidelity getSamplingFidelity() {
+        return samplingFidelity;
+    }
+
+    @Override
+    protected Node getVertexBasedOnStrategy(Clade clade, SamplingStrategy samplingStrategy,
+                                            HeightSettingStrategy heightStrategy) {
+        // Escape sampling is meaningful only for random Sampling; point estimates (MAP,
+        // MaxSumCladeCredibility) and leaves keep the inherited observed-only behaviour.
+        if (samplingStrategy != SamplingStrategy.Sampling || clade.isLeaf()) {
+            return super.getVertexBasedOnStrategy(clade, samplingStrategy, heightStrategy);
+        }
+
+        CladeReg reg = computeReg(clade);
+        if (reg.reservable()) {
+            double eps = Math.exp(reg.logEps());
+            double[] orderWeight = escapeOrderWeights(clade, reg, eps);
+            double escapeMass = 0.0;
+            for (double w : orderWeight) {
+                escapeMass += w;
+            }
+            if (escapeMass > 0 && random.nextDouble() < escapeMass) {
+                Node region = sampleBlueRegion(clade, reg, orderWeight, escapeMass, heightStrategy);
+                if (region != null) {
+                    return region;
+                }
+                // region sampling hit the op-budget; fall through to an observed split
+            }
+        }
+        return resolveRedRoot(clade, samplingStrategy, heightStrategy);
+    }
+
+    /** Resolves {@code clade} with an observed (red) split and recurses into its children
+     * through the overriding sampler (so descendant clades may still escape). Stamps the same
+     * {@code (1 - mu - tail) * theta} factor scoreFresh charges at a red node. Leaves delegate
+     * to the inherited leaf construction. */
+    private Node resolveRedRoot(Clade clade, SamplingStrategy samplingStrategy,
+                                HeightSettingStrategy heightStrategy) {
+        if (clade.isLeaf()) {
+            return super.getVertexBasedOnStrategy(clade, samplingStrategy, heightStrategy);
+        }
+        CladePartition partition = getPartitionBasedOnStrategy(clade, samplingStrategy);
+        if (partition == null) {
+            throw new AssertionError("Unsuccessful to find clade partition of clade: "
+                    + clade.getCladeInBits());
+        }
+        Node firstChild = getVertexBasedOnStrategy(partition.getChildClades()[0],
+                samplingStrategy, heightStrategy);
+        Node secondChild = getVertexBasedOnStrategy(partition.getChildClades()[1],
+                samplingStrategy, heightStrategy);
+        Node vertex = buildInternalVertex(clade, partition, firstChild, secondChild, heightStrategy);
+        CladeReg reg = computeReg(clade);
+        if (reg.reservable()) {
+            applyLogFactor(vertex, Math.log(1.0 - mu - reg.tail()));
+        }
+        return vertex;
+    }
+
+    /** Escape weight per boundary size: {@code w[m] = N_m * eps^(m-2)}. SELF_CONSISTENT uses the
+     * computed orders (whose sum is mu); FULL_SUPPORT additionally Knuth-estimates the leading
+     * tail orders ({@code k+1, k+2}). */
+    private double[] escapeOrderWeights(Clade c, CladeReg reg, double eps) {
+        int maxBoundary = reg.lastBoundary();
+        int[] n = reg.nCounts();
+        int hi = maxBoundary;
+        if (samplingFidelity == SamplingFidelity.FULL_SUPPORT) {
+            hi = Math.min(c.size(), reserveBoundary + 2);
+        }
+        double[] w = new double[Math.max(maxBoundary, hi) + 1];
+        for (int m = 3; m <= maxBoundary; m++) {
+            if (n[m] > 0) {
+                w[m] = n[m] * Math.pow(eps, m - EXP_REDUCTION);
+            }
+        }
+        if (samplingFidelity == SamplingFidelity.FULL_SUPPORT && hi > maxBoundary) {
+            List<Clade> subs = observedSubclades(c);
+            for (int m = maxBoundary + 1; m <= hi; m++) {
+                double nm = estimateNj(c, subs, m, TAIL_SAMPLES);
+                if (nm > 0) {
+                    w[m] = nm * Math.pow(eps, m - EXP_REDUCTION);
+                }
+            }
+        }
+        return w;
+    }
+
+    /** Samples a maximal blue region rooted at observed clade {@code c}: draws a boundary size,
+     * a uniform valid boundary, a uniform all-novel resolution shape, resolves the boundary parts
+     * red, and stamps the region factor {@code eps^(m-2)/pathcount}. Returns {@code null} if the
+     * boundary enumeration exceeds the op-budget (the caller then takes an observed split). */
+    private Node sampleBlueRegion(Clade c, CladeReg reg, double[] orderWeight, double escapeMass,
+                                  HeightSettingStrategy heightStrategy) {
+        double target = random.nextDouble() * escapeMass;
+        double acc = 0.0;
+        int m = -1;
+        for (int mm = 3; mm < orderWeight.length; mm++) {
+            if (orderWeight[mm] <= 0) {
+                continue;
+            }
+            acc += orderWeight[mm];
+            if (target < acc) {
+                m = mm;
+                break;
+            }
+        }
+        if (m < 0) { // numerical guard: fall back to the largest available order
+            for (int mm = orderWeight.length - 1; mm >= 3; mm--) {
+                if (orderWeight[mm] > 0) {
+                    m = mm;
+                    break;
+                }
+            }
+        }
+        if (m < 0) {
+            return null;
+        }
+
+        List<Clade> subs = observedSubclades(c);
+        BitSet[] parts;
+        try {
+            parts = sampleBoundary(c, subs, m);
+        } catch (BudgetExceeded e) {
+            return null;
+        }
+        if (parts == null) {
+            return null;
+        }
+
+        Resolution res = sampleResolution(c.getCladeInBits(), parts);
+
+        // Resolve every boundary part with an observed split (red) so the region is maximal.
+        Node[] boundaryNodes = new Node[m];
+        for (int i = 0; i < m; i++) {
+            Clade part = getClade(parts[i]);
+            boundaryNodes[i] = resolveRedRoot(part, SamplingStrategy.Sampling, heightStrategy);
+        }
+
+        double topHeight = regionTopHeight(c, heightStrategy);
+        Node region = assembleRegion(res.shape(), boundaryNodes, c, topHeight, heightStrategy);
+        // One factor of eps per novel clade (m - 2 of them), spread over the pathcount resolutions.
+        applyLogFactor(region, (m - EXP_REDUCTION) * reg.logEps() - Math.log(res.pathcount()));
+        return region;
+    }
+
+    /** Uniformly samples one valid boundary of {@code c} into {@code m} observed subclades
+     * (admitting an all-novel resolution) by reservoir sampling over the same canonical
+     * enumeration {@link #countNj} counts. Returns the chosen parts, or {@code null} if none. */
+    private BitSet[] sampleBoundary(Clade c, List<Clade> subs, int m) {
+        boundarySeen = 0;
+        boundaryPick = null;
+        enumOps = 0;
+        sampleBoundaryWalk(c.getCladeInBits(), subs, m, 0,
+                BitSet.newBitSet(leafArraySize), new ArrayList<>(m));
+        return boundaryPick;
+    }
+
+    private void sampleBoundaryWalk(BitSet cBits, List<Clade> subs, int m, int startIdx,
+                                    BitSet used, List<BitSet> chosen) {
+        if (++enumOps > OPS_BUDGET) {
+            throw BUDGET_EXCEEDED;
+        }
+        if (chosen.size() == m - 1) {
+            BitSet last = (BitSet) cBits.clone();
+            last.andNot(used);
+            if (last.cardinality() == 0 || getClade(last) == null) {
+                return;
+            }
+            if (compareBitSets(chosen.get(chosen.size() - 1), last) >= 0) {
+                return;
+            }
+            BitSet[] parts = new BitSet[m];
+            for (int i = 0; i < m - 1; i++) {
+                parts[i] = chosen.get(i);
+            }
+            parts[m - 1] = last;
+            if (countAllNovelResolutions(cBits, parts) <= 0) {
+                return;
+            }
+            boundarySeen++;
+            if (random.nextInt(boundarySeen) == 0) { // reservoir: keep with probability 1/seen
+                boundaryPick = parts;
+            }
+            return;
+        }
+        for (int i = startIdx; i < subs.size(); i++) {
+            BitSet pb = subs.get(i).getCladeInBits();
+            if (pb.intersects(used)) {
+                continue;
+            }
+            chosen.add(pb);
+            BitSet newUsed = (BitSet) used.clone();
+            newUsed.or(pb);
+            sampleBoundaryWalk(cBits, subs, m, i + 1, newUsed, chosen);
+            chosen.remove(chosen.size() - 1);
+        }
+    }
+
+    /** A sampled all-novel resolution of a clade into its boundary parts, with the total number
+     * of such resolutions (the pathcount) that normalises the region. */
+    private record Resolution(Shape shape, int pathcount) {
+    }
+
+    /** Node of a sampled resolution shape: a boundary part (leaf, {@code partIndex >= 0}) or a
+     * novel internal split with two children. */
+    private static final class Shape {
+        final BitSet union;
+        final int partIndex;
+        final Shape left;
+        final Shape right;
+
+        Shape(BitSet union, int partIndex) {
+            this.union = union;
+            this.partIndex = partIndex;
+            this.left = null;
+            this.right = null;
+        }
+
+        Shape(BitSet union, Shape left, Shape right) {
+            this.union = union;
+            this.partIndex = -1;
+            this.left = left;
+            this.right = right;
+        }
+
+        boolean isLeaf() {
+            return partIndex >= 0;
+        }
+    }
+
+    /** Uniformly samples one all-novel binary resolution of {@code cBits} into {@code parts} by
+     * top-down sampling from the same subset DP {@link #countAllNovelResolutions} builds (at each
+     * mask a split is chosen with probability proportional to {@code f[s1]*f[s2]}). */
+    private Resolution sampleResolution(BitSet cBits, BitSet[] parts) {
+        int k = parts.length;
+        if (k == 1) {
+            return new Resolution(new Shape(parts[0], 0), 1);
+        }
+        int full = (1 << k) - 1;
+        BitSet[] unionOf = new BitSet[1 << k];
+        unionOf[0] = BitSet.newBitSet(leafArraySize);
+        for (int mask = 1; mask <= full; mask++) {
+            int low = Integer.numberOfTrailingZeros(mask);
+            BitSet u = (BitSet) unionOf[mask & (mask - 1)].clone();
+            u.or(parts[low]);
+            unionOf[mask] = u;
+        }
+        int[] f = new int[1 << k];
+        for (int mask = 1; mask <= full; mask++) {
+            if (Integer.bitCount(mask) == 1) {
+                f[mask] = 1;
+                continue;
+            }
+            int low = mask & (-mask);
+            int rest = mask ^ low;
+            int count = 0;
+            for (int sub = rest; ; sub = (sub - 1) & rest) {
+                int s1 = sub | low;
+                int s2 = mask ^ s1;
+                if (s2 != 0 && !isSplitObserved(unionOf[mask], unionOf[s1], unionOf[s2])) {
+                    count += f[s1] * f[s2];
+                }
+                if (sub == 0) {
+                    break;
+                }
+            }
+            f[mask] = count;
+        }
+        Shape shape = sampleShape(full, parts, unionOf, f);
+        return new Resolution(shape, f[full]);
+    }
+
+    private Shape sampleShape(int mask, BitSet[] parts, BitSet[] unionOf, int[] f) {
+        if (Integer.bitCount(mask) == 1) {
+            int idx = Integer.numberOfTrailingZeros(mask);
+            return new Shape(parts[idx], idx);
+        }
+        int low = mask & (-mask);
+        int rest = mask ^ low;
+        int targetCount = random.nextInt(f[mask]); // f[mask] > 0 at every visited mask
+        int acc = 0;
+        int chosenS1 = -1;
+        int chosenS2 = -1;
+        for (int sub = rest; ; sub = (sub - 1) & rest) {
+            int s1 = sub | low;
+            int s2 = mask ^ s1;
+            if (s2 != 0 && !isSplitObserved(unionOf[mask], unionOf[s1], unionOf[s2])) {
+                acc += f[s1] * f[s2];
+                if (targetCount < acc) {
+                    chosenS1 = s1;
+                    chosenS2 = s2;
+                    break;
+                }
+            }
+            if (sub == 0) {
+                break;
+            }
+        }
+        Shape left = sampleShape(chosenS1, parts, unionOf, f);
+        Shape right = sampleShape(chosenS2, parts, unionOf, f);
+        return new Shape((BitSet) unionOf[mask].clone(), left, right);
+    }
+
+    /** Materialises a sampled resolution shape into nodes: boundary parts reuse their already
+     * resolved (red) nodes, novel internal nodes get fresh nodes with identity probability factors
+     * (the region factor is applied once at the top by the caller) and interpolated heights. */
+    private Node assembleRegion(Shape shape, Node[] boundaryNodes, Clade c, double topHeight,
+                                HeightSettingStrategy heightStrategy) {
+        if (shape.isLeaf()) {
+            return boundaryNodes[shape.partIndex];
+        }
+        Node left = assembleRegion(shape.left, boundaryNodes, c, topHeight, heightStrategy);
+        Node right = assembleRegion(shape.right, boundaryNodes, c, topHeight, heightStrategy);
+
+        Node vertex = new Node();
+        vertex.setNr(nextRunningInnerIndex());
+        vertex.addChild(left);
+        vertex.addChild(right);
+
+        boolean isTop = shape.union.equals(c.getCladeInBits());
+        Clade obs = getClade(shape.union); // observed at the top (= c) and at any observed interior
+        double support = (obs != null) ? obs.getProbability() : 0.0;
+        vertex.setMetaData(CLADE_SUPPORT_KEY, support);
+        String posteriorSupport = CLADE_SUPPORT_KEY + "=" + support;
+        vertex.metaDataString = (vertex.metaDataString != null)
+                ? vertex.metaDataString + "," + posteriorSupport : posteriorSupport;
+
+        // identity factors: the per-region eps^(m-2)/pathcount is stamped once at the region top.
+        vertex.setMetaData(PROB_SUBTREE_KEY,
+                (Double) left.getMetaData(PROB_SUBTREE_KEY) * (Double) right.getMetaData(PROB_SUBTREE_KEY));
+        vertex.setMetaData(LOG_PROB_SUBTREE_KEY,
+                (Double) left.getMetaData(LOG_PROB_SUBTREE_KEY) + (Double) right.getMetaData(LOG_PROB_SUBTREE_KEY));
+
+        setNovelHeight(vertex, left, right, isTop, topHeight, heightStrategy);
+        return vertex;
+    }
+
+    /** Region-top height under the given strategy ({@code NaN} for One/None, which the novel-height
+     * scheme handles without a fixed top). */
+    private double regionTopHeight(Clade c, HeightSettingStrategy heightStrategy) {
+        if (heightStrategy == HeightSettingStrategy.MeanOccurredHeights) {
+            return c.getMeanOccurredHeight();
+        }
+        if (heightStrategy == HeightSettingStrategy.CommonAncestorHeights) {
+            return c.getCommonAncestorHeight();
+        }
+        return Double.NaN;
+    }
+
+    /** Sets a height for a novel (or region-top) internal node that keeps branch lengths positive:
+     * One uses {@code max(child) + 1}; Mean/CommonAncestor put the top at its clade height and each
+     * interior node at the midpoint between its children and the top, falling back to
+     * {@code max(child) + eps} if the top is not strictly above the children; None leaves it unset. */
+    private void setNovelHeight(Node vertex, Node left, Node right, boolean isTop,
+                                double topHeight, HeightSettingStrategy heightStrategy) {
+        if (heightStrategy == null || heightStrategy == HeightSettingStrategy.None) {
+            return;
+        }
+        double maxChild = Math.max(left.getHeight(), right.getHeight());
+        double height;
+        if (heightStrategy == HeightSettingStrategy.One) {
+            height = maxChild + 1.0;
+        } else if (isTop) {
+            height = (topHeight > maxChild) ? topHeight : maxChild + NOVEL_HEIGHT_EPS;
+        } else {
+            height = (topHeight > maxChild) ? 0.5 * (maxChild + topHeight) : maxChild + NOVEL_HEIGHT_EPS;
+        }
+        vertex.setHeight(height);
+    }
+
+    private static void applyLogFactor(Node vertex, double logFactor) {
+        vertex.setMetaData(LOG_PROB_SUBTREE_KEY,
+                (Double) vertex.getMetaData(LOG_PROB_SUBTREE_KEY) + logFactor);
+        vertex.setMetaData(PROB_SUBTREE_KEY,
+                (Double) vertex.getMetaData(PROB_SUBTREE_KEY) * Math.exp(logFactor));
+    }
+
+    /* ----------------------------------------------------------------------
      * Observed-split / observed-clade queries
      * ------------------------------------------------------------------- */
 
@@ -428,7 +869,7 @@ public class KRegCCD extends RegCCD {
         }
         CladeReg reg;
         if (c.size() < 3) {
-            reg = new CladeReg(false, Double.NEGATIVE_INFINITY, 0.0);
+            reg = new CladeReg(false, Double.NEGATIVE_INFINITY, 0.0, null, 0);
             regCache.put(c, reg);
             return reg;
         }
@@ -478,7 +919,7 @@ public class KRegCCD extends RegCCD {
             }
         }
 
-        reg = new CladeReg(anyNonzero, logEps, tail);
+        reg = new CladeReg(anyNonzero, logEps, tail, anyNonzero ? n : null, last);
         regCache.put(c, reg);
         return reg;
     }
