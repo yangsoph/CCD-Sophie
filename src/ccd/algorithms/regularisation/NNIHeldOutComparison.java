@@ -97,13 +97,16 @@ public class NNIHeldOutComparison {
             specs.add(new ModelSpec(String.format("NNIRegCCD[CO_OCCURRING,b=%.3f]", beta),
                     tr -> new NNIRegCCD(tr, 0.0, PairingMode.CO_OCCURRING, alpha, beta)));
         }
-        // full-support KRegCCD; k = reserve depth used to estimate eps (coverage
-        // is 100% regardless of k)
-        for (int k : new int[]{1, 2}) {
-            for (double mu : new double[]{0.01, 0.05, 0.1, 0.2}) {
-                specs.add(new ModelSpec(String.format("KRegCCD[rd=%d,mu=%.2f]", k, mu),
-                        tr -> new KRegCCD(tr, 0.0, mu, alpha, k)));
-            }
+        // full-support KRegCCD (reserve depth 2); compare the three tail modes to
+        // show the normalisation effect on mean logP: NONE (super-normalised),
+        // BOUND (upper bound, sub-normalised), SAMPLED (Knuth, near-exact)
+        for (double mu : new double[]{0.01, 0.05, 0.1, 0.2}) {
+            specs.add(new ModelSpec(String.format("KRegCCD[rd=2,none,mu=%.2f]", mu),
+                    tr -> new KRegCCD(tr, 0.0, mu, alpha, 2, KRegCCD.TailMode.NONE)));
+            specs.add(new ModelSpec(String.format("KRegCCD[rd=2,bound,mu=%.2f]", mu),
+                    tr -> new KRegCCD(tr, 0.0, mu, alpha, 2, KRegCCD.TailMode.BOUND)));
+            specs.add(new ModelSpec(String.format("KRegCCD[rd=2,sampled,mu=%.2f]", mu),
+                    tr -> new KRegCCD(tr, 0.0, mu, alpha, 2, KRegCCD.TailMode.SAMPLED)));
         }
         return specs;
     }
@@ -272,6 +275,51 @@ public class NNIHeldOutComparison {
      * @throws Exception if a tree file cannot be read
      */
     public static void main(String[] args) throws Exception {
+        if (args.length >= 1 && args[0].equals("calib")) {
+            // calib <train.trees> [<heldout.trees>] [burnin%] [alpha]
+            // Compares KRegCCD's model mass on novel-clade trees against the
+            // empirical fraction of held-out trees that contain a novel clade.
+            boolean twoFiles = args.length >= 3 && args[2].endsWith(".trees");
+            int ai = twoFiles ? 3 : 2;
+            int burnin = (args.length > ai) ? Integer.parseInt(args[ai]) : 10;
+            double alpha = (args.length > ai + 1) ? Double.parseDouble(args[ai + 1]) : NNIRegCCD.DEFAULT_ALPHA;
+            List<Tree> train, heldOut;
+            if (twoFiles) {
+                train = loadTrees(args[1], burnin);
+                heldOut = loadTrees(args[2], burnin);
+            } else {
+                List<Tree> all = loadTrees(args[1], burnin);
+                int half = all.size() / 2;
+                train = new ArrayList<>(all.subList(0, half));
+                heldOut = new ArrayList<>(all.subList(half, all.size()));
+            }
+            // empirical novel-clade fraction (depends only on the expanded clade set)
+            KRegCCD ref = new KRegCCD(train, 0.0, 0.01, alpha, 2, KRegCCD.TailMode.NONE);
+            int novel = 0;
+            for (Tree t : heldOut) {
+                if (ref.containsNovelClade(t)) {
+                    novel++;
+                }
+            }
+            double empirical = novel / (double) heldOut.size();
+            System.out.printf("calibration: train = %d, held-out = %d, alpha = %.3f%n",
+                    train.size(), heldOut.size(), alpha);
+            System.out.printf("empirical novel-clade fraction = %.4f (%d/%d)%n",
+                    empirical, novel, heldOut.size());
+            System.out.println("  mu       model P(novel)  empirical  ratio   mean logP/tree");
+            for (double mu : new double[]{0.002, 0.003, 0.0035, 0.004, 0.0045, 0.005, 0.006, 0.01}) {
+                KRegCCD m = new KRegCCD(train, 0.0, mu, alpha, 2, KRegCCD.TailMode.NONE);
+                double pNovel = m.getNovelCladeProbability();
+                double sumLogP = 0.0;
+                for (Tree t : heldOut) {
+                    sumLogP += m.getLogProbabilityOfTree(t);
+                }
+                double meanLogP = sumLogP / heldOut.size();
+                System.out.printf("  %-7.3f  %12.4f   %8.4f  %.2fx   %10.4f%n",
+                        mu, pNovel, empirical, pNovel / empirical, meanLogP);
+            }
+            return;
+        }
         if (args.length >= 1 && args[0].equals("cv")) {
             if (args.length < 3) {
                 System.err.println("Usage: NNIHeldOutComparison cv <all.trees> <folds> [burnin%] [alpha] [strided|contiguous]");

@@ -8,9 +8,218 @@
 \newcommand{\NN}{\mathcal{N}}
 \newcommand{\union}{\cup}
 
+
 \begin{document}
 
-\section*{Clade-level NNI expansion of a CCD}
+\title{Regularising a CCD to full support}
+\author{Yang, Bouckaert, Drummond}
+\date{}
+\maketitle
+
+A conditional clade distribution (CCD) assigns probability zero to any tree
+containing a clade or split its sample never produced. For held-out evaluation
+and for use as a tree prior this is too brittle: an independent posterior sample
+routinely visits trees just outside the support. We want a regulariser that gives
+\emph{every} tree nonzero probability while keeping the observed structure sharp,
+and that places the right amount of mass on the unseen region. Here we develop a full-support, single-parameter regulariser that computes the probability of novelty at lazily without
+enlarging the clade set. Appendix~A records an earlier route, NNI clade expansion,
+which enlarges the clade set by a fixed local move-set; the main model
+subsumes its coverage with a simpler construction.
+
+\section*{CCD regularisation: full support from a single parameter}
+
+\paragraph{Motivation.}
+One way to give unsampled clades nonzero probability is to \emph{enlarge the clade
+set} with the clades reachable by a fixed local move (NNI clade expansion;
+Appendix~A). Such an approach has three problems: it \emph{mutates the
+graph} (a clade-enumeration pass plus a second split expansion), it adds extra parameters
+$(\beta,\text{mode})$ on top of $\alpha$, and it covers only the novelty its
+move-set can reach so that trees more than one NNI from the support still receive
+probability zero. The construction we prefer instead computes a probability of unsampled clades on demand without touching the sampled clade set, gives
+\emph{every} tree nonzero probability, and is governed by a single parameter
+$\mu$, the per-clade probability of escaping the sampled splits.
+
+\paragraph{Red/blue decomposition.}
+Keep the split-expanded, additive-$\alpha$ backbone of \eqref{eq:smoothing}, but
+add \emph{no} clades. To score a tree $T$, colour each internal node \emph{red} if
+its split is present in the (expanded) CCD and \emph{blue} otherwise; a blue node
+necessarily involves an unobserved clade. Blue nodes form maximal connected
+\emph{regions}. The top of a region is always an observed clade $C$ (its parent is
+red, or it is the root), and its boundary $\partial B$ is the set of $m$ observed
+subclades hanging immediately below it (the first red or leaf nodes). Such a
+region resolves $C$ into its $m$ boundary parts through exactly $m-2$ novel
+intermediate clades.
+
+\paragraph{Probability.}
+Red nodes keep their smoothed conditional clade probability $\theta$, discounted
+by a reserved escape mass $\mu$; each blue region is charged one factor of
+$\epsilon$ per novel clade, spread uniformly over the ways its boundary can be
+realised:
+\begin{equation}
+  P(T)=\prod_{v\in\mathrm{red}(T)}\!(1-\mu)\,\theta\!\left(S_v\mid C(v)\right)
+       \;\prod_{B\in\mathrm{blue}(T)}\!\frac{\epsilon(C_B)^{\,m_B-2}}{\pi(C_B,\partial B)},
+  \label{eq:blueregion}
+\end{equation}
+where $\pi(C,\partial B)$ (the \emph{pathcount}) is the number of all-novel
+resolutions of $C$ into the boundary $\partial B$, computed by a subset
+dynamic program over the at most $m$ parts. The division by $\pi$ makes the
+reserved mass uniform over the unseen trees of a given boundary.
+
+\paragraph{Per-clade reserve.}
+The escape factor $\epsilon(C)$ is fixed per clade by requiring the blue mass to
+equal a target escape probability $\mu$:
+\begin{equation}
+  R(C)=\sum_{j\ge 1} N_j(C)\,\epsilon(C)^{j}=\mu,
+  \qquad
+  N_j(C)=\#\Bigl\{\text{partitions of $C$ into $j{+}2$ observed subclades}\Bigr\},
+  \label{eq:reserve}
+\end{equation}
+restricted to partitions admitting an all-novel resolution (the pathcount
+cancellation in \eqref{eq:blueregion} collapses the resolutions, leaving one term
+per partition). Thus $\mu$ is the per-clade probability of escaping the sampled
+splits, and is the model's only free parameter; $\mu=0$ recovers the unsmoothed
+backbone.
+
+\paragraph{Full support by decoupling coverage from normalisation.}
+Evaluating \eqref{eq:reserve} exactly is \#P-hard: $N_j(C)$ is a set-partition
+count over the non-laminar clade family, growing as $O(m^{j+1})$ in the number $m$
+of observed subclades of $C$. The key observation is that \emph{coverage does not
+need it}. A tree receives nonzero probability as soon as (i) scoring is not
+truncated, and (ii) $\epsilon(C)>0$ at each region top. Any region actually
+present in $T$ is itself a valid novel partition, so $N_m(C)\ge 1$ and a positive
+$\epsilon$ exists. The exact $N_j$ only fix the \emph{value} of $\epsilon$. We
+therefore solve \eqref{eq:reserve} from the cheap low orders alone (reserve depth
+$k$; $N_1$ is $O(m^2)$, $N_2$ is $O(m^3)$) and score regions of \emph{every}
+depth with that $\epsilon$. The result is full support based on a low-order approximation of $\epsilon(C)$ per sampled clade: every tree, at any novelty depth, is covered.
+
+\paragraph{Normalisation and a non-inflating guarantee.}
+Scoring all orders based on a depth-$k$ estimate of $epsilon(C)$ will assign slightly too much probability mass to trees that escape the CCD at clade C by omitting the tail, so the model is slightly \emph{super}-normalised. This 
+\emph{inflates} the held-out log-probabilities and overestimates the fit of the model in any held-out
+comparison. The defect is
+\begin{equation}
+  \mathrm{tail}(C)=\sum_{j>k}N_j\,\epsilon^j
+  \;\le\; N_2\,\epsilon^2\,\frac{\rho}{1-\rho},
+  \qquad \rho=\frac{N_2}{N_1}\,\epsilon,
+  \label{eq:tail}
+\end{equation}
+a geometric upper bound read straight off the two computed orders (rigorous when
+the $N_j$ are log-concave), scaling as $\mu^{k+1}/m^{k}$. Discounting red splits by
+$1-\mu-\mathrm{tail}(C)$ instead of $1-\mu$ guarantees the total probability can be at most
+$1$: the model is then \emph{sub}-normalised and can never over-state the model fit. A
+Knuth backtrack-tree estimate of the tail gives the near-exact value instead of
+the bound. On RSV2 the inflation scales as $\mu^3$ and is negligible for realistic posterior samples, becoming material only for large $\mu$:
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrr}
+\hline
+$\mu$ & true inflation (sampled) & upper bound \\
+\hline
+$0.01$ & $0.0001$ & $0.0001$ \\
+$0.05$ & $0.0007$ & $0.0101$ \\
+$0.10$ & $0.014$ & $0.077$ \\
+$0.20$ & $0.116$ & $0.662$ \\
+\hline
+\end{tabular}
+\end{center}
+(mean nat/tree on held-out RSV2). A safety check warns whenever $\mu>0.05$, beyond
+which the bound exceeds $\sim 0.01$ nat/tree.
+
+\paragraph{RSV2.}
+Under $5$-fold leave-one-tree-out on the strict-clock posterior ($n=129$, $2{,}251$
+trees, backbone $\alpha=0.4$, $\mu=0.01$), the blue-region model covers every
+held-out tree at mean held-out log-probability competitive with the tuned
+graph-wide NNI of Appendix~A:
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrr}
+\hline
+model & coverage & mean $\log P$ (common set) \\
+\hline
+regCCD (no clade expansion) & $89.6\%$ & $-53.50$ \\
+NNI clade expansion (co-occurring) & $99.3\%$ & --- \\
+KRegCCD, ($\mu=0.01$) & $\mathbf{100.0\%}$ & $-54.20$ \\
+\hline
+\end{tabular}
+\end{center}
+Full support guarantees the $100\%$ structurally rather than by enlarging a clade
+set; the residual that NNI co-occurring misses (novelty an SPR-move away) is
+covered here automatically. The common-set log-probabilities are over the trees
+all models cover (the $\sim 90\%$ within plain regCCD's support), on which regCCD
+is marginally sharper precisely because it reserves no escape mass there; the
+blue-region model trades that fraction of a nat to cover the remaining $\sim 10\%$
+of held-out trees that contain a novel clade, which regCCD assigns probability
+zero.
+
+\paragraph{Calibration: the right amount of novelty.}
+Because $\mu$ is the only parameter and directly governs the escape mass, the model's
+total probability on trees that contain a novel clade has a closed form,
+\begin{equation}
+  P(\text{novel})=1-M(\rho),\qquad
+  M(c)=\bigl(1-\mu\bigr)^{[c\ \text{reserves}]}
+        \!\!\!\sum_{(L,R)\in S^{\mathrm{obs}}(c)}\!\!\! \theta(L,R)\,M(L)\,M(R),
+  \label{eq:pnovel}
+\end{equation}
+the mass that stays entirely within the observed clade set ($M=1$ on leaves; the
+$(1-\mu)$ factor applies at clades large enough to host an escape). Training on one
+half of the strict-clock posterior and scoring the independent held-out half, we
+compare \eqref{eq:pnovel} against the \emph{empirical} fraction of held-out trees
+that actually contain a novel clade ($0.214$ here because the modest training sample
+makes this a high-novelty regime). Mean log-probability is over \emph{all}
+held-out trees (the model covers them all), so it sits below the common-set value
+of the table above.
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrrrr}
+\hline
+$\mu$ & model $P(\text{novel})$ & empirical & ratio & mean $\log P$/tree \\
+\hline
+$0.002$  & $0.132$ & $0.214$ & $0.62\times$ & $-56.953$ \\
+$0.003$  & $0.192$ & $0.214$ & $0.90\times$ & $-56.869$ \\
+$0.0035$ & $0.220$ & $0.214$ & $1.03\times$ & $-56.846$ \\
+$\mathbf{0.004}$  & $\mathbf{0.247}$ & $0.214$ & $\mathbf{1.15\times}$ & $-56.830$ \\
+$0.005$  & $0.299$ & $0.214$ & $1.40\times$ & $\mathbf{-56.816}$ \\
+$0.006$  & $0.347$ & $0.214$ & $1.62\times$ & $-56.818$ \\
+$0.010$  & $0.509$ & $0.214$ & $2.38\times$ & $-56.907$ \\
+\hline
+\end{tabular}
+\end{center}
+The mean held-out log-probability has an interior optimum (too small a $\mu$ starves
+the genuinely novel trees, too large dilutes the observed ones), and is \emph{flat}
+across $\mu\in[0.004,0.006]$, all within $\sim 0.005$ nat of the peak at $\mu=0.005$.
+The operating point can therefore be chosen for calibration at essentially no cost in
+sharpness: at $\mu\approx 0.004$ the model places mass on novel-clade trees within
+$\sim\!1.15\times$ of the empirical rate (exact calibration, $1.03\times$, at
+$\mu\approx 0.0035$), giving up only $\sim 0.01$ nat against the sharpness peak. A
+single parameter, pinned inside a flat held-out-likelihood plateau, thus delivers
+both full coverage and the right amount of mass on the unseen region. This is the
+blue-region counterpart of the factor-$1.2$ calibration that
+Appendix~A obtains from the two-parameter $(\alpha,\beta)$ smoothing, here from one
+parameter and the closed-form recursion \eqref{eq:pnovel}.
+
+\paragraph{Why this is preferred.}
+The blue-region construction matches the NNI expansion's coverage and sharpness
+while being strictly simpler and more general:
+\begin{itemize}
+  \item \textbf{One parameter.} A single escape probability $\mu$ replaces
+    $(\alpha_{\text{NNI}},\beta,\text{mode})$; the backbone $\alpha$ is the only
+    other parameter and is shared with plain regCCD.
+  \item \textbf{No graph mutation.} The clade set is untouched so there is no clade
+    enumeration, no second split expansion.
+  \item \textbf{Full support.} Every tree has nonzero probability, not only those
+    within a fixed move-set, so coverage is not capped at NNI (or any) rearrangement
+    depth.
+  \item \textbf{Coverage is free.} It is decoupled from the \#P-hard exact
+    normalisation: $100\%$ coverage needs only the $O(m^3)$ low-order estimate to high accuracy for low $\mu$.
+  \item \textbf{Controlled normalisation.} The tail correction makes the
+    normalisation explicit and either provably non-inflating or near-exact.
+\end{itemize}
+
+
+\clearpage
+
+\appendix
+
+\section*{Appendix A: clade-level NNI expansion}
 
 \paragraph{Motivation.}
 The CCD0 construction \emph{expands the split set}: for every clade partition
@@ -87,7 +296,7 @@ novelty one would extend to SPR neighbourhoods, also expressible at the clade
 level (a regrafted subtree clade unioned with whatever lies below the target
 edge), at the cost of many more candidates.
 
-\section*{Parameterisation in CCD1 / regCCD}
+\subsection*{A.1\quad Parameterisation in CCD1 / regCCD}
 
 The clade expansion is most natural in the \emph{split}-parameterised models.
 A regularised CCD (regCCD) takes the CCD1 graph, adds the unobserved splits whose
@@ -145,7 +354,7 @@ $\beta$ is typically an order of magnitude below $\alpha$, confirming the weaker
 prior on NNI splits; and the optimal $\alpha$ shifts under the expansion, so the
 pseudocounts should be re-tuned rather than inherited.
 
-\section*{Worked example: held-out calibration on RSV2}
+\subsection*{A.2\quad Worked example: held-out calibration on RSV2}
 
 The most direct test of whether the expansion is well-calibrated is to train on
 one posterior sample and score an \emph{independent} posterior sample from the

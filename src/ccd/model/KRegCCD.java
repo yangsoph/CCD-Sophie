@@ -85,10 +85,39 @@ public class KRegCCD extends RegCCD {
      * (full support), so coverage is independent of k. */
     private final int reserveBoundary; // = k + 2
 
-    /** log eps(C) per region-top clade; NEGATIVE_INFINITY if C reserves nothing
-     * computable (then scoring falls back to per-region mass mu/pathcount). */
-    private final Map<Clade, Double> logEpsCache = new HashMap<>();
-    private final Map<Clade, Boolean> reservableCache = new HashMap<>();
+    /**
+     * How to correct for the omitted reserve tail (orders &gt; reserve depth) when
+     * discounting red splits by {@code 1 - mu - tail(C)}:
+     * <ul>
+     *   <li>{@link #NONE}: no correction ({@code tail = 0}); slightly
+     *       super-normalised (inflates held-out scores by the tail).</li>
+     *   <li>{@link #BOUND}: geometric upper bound on the tail; provably
+     *       sub-normalised (never inflates).</li>
+     *   <li>{@link #SAMPLED}: Knuth estimate of the actual tail; near-exactly
+     *       normalised (up to Monte-Carlo noise).</li>
+     * </ul>
+     */
+    public enum TailMode {NONE, BOUND, SAMPLED}
+
+    private final TailMode tailMode;
+
+    /** mu above which the un-corrected inflation becomes material (&gt; ~0.01 nat). */
+    private static final double MU_WARN_THRESHOLD = 0.05;
+
+    /** Knuth samples per order when estimating the tail (SAMPLED mode). */
+    private static final int TAIL_SAMPLES = 1000;
+
+    /** Below this, the bounded tail is negligible, so SAMPLED skips the sampling. */
+    private static final double TAIL_SAMPLE_THRESHOLD = 1e-5;
+
+    private final java.util.Random rng = new java.util.Random(12345);
+
+    /** Per-clade reserve info: whether C reserves mu, log eps(C) (NEGATIVE_INFINITY
+     * if nothing computable), and the tail correction to subtract from (1 - mu). */
+    private record CladeReg(boolean reservable, double logEps, double tail) {
+    }
+
+    private final Map<Clade, CladeReg> regCache = new HashMap<>();
 
     /**
      * Default variant: reserve depth k = 2 (eps from the one- and two-novel-clade
@@ -104,16 +133,25 @@ public class KRegCCD extends RegCCD {
     }
 
     /**
-     * @param trees  training trees (post burn-in)
-     * @param burnin fraction discarded as burn-in (0.0 if already removed)
-     * @param mu     per-clade escape probability, in (0, 1)
-     * @param alpha  additive-smoothing pseudocount for the split-expanded backbone
-     * @param k      reserve depth: include novel-clade orders {@code 1..k} when
-     *               solving {@code eps} (>= 1; {@code k = 1} uses only the NNI
-     *               order). Scoring is NOT truncated at {@code k}, so coverage is
-     *               full regardless; {@code k} only affects {@code eps} accuracy.
+     * @param k reserve depth (see below); tail bound correction on.
      */
     public KRegCCD(List<Tree> trees, double burnin, double mu, double alpha, int k) {
+        this(trees, burnin, mu, alpha, k, TailMode.BOUND);
+    }
+
+    /**
+     * @param trees    training trees (post burn-in)
+     * @param burnin   fraction discarded as burn-in (0.0 if already removed)
+     * @param mu       per-clade escape probability, in (0, 1)
+     * @param alpha    additive-smoothing pseudocount for the split-expanded backbone
+     * @param k        reserve depth: include novel-clade orders {@code 1..k} when
+     *                 solving {@code eps} (>= 1). Scoring is NOT truncated at
+     *                 {@code k}, so coverage is full regardless; {@code k} only
+     *                 affects accuracy.
+     * @param tailMode how to correct for the omitted reserve tail (see {@link TailMode})
+     */
+    public KRegCCD(List<Tree> trees, double burnin, double mu, double alpha, int k,
+                   TailMode tailMode) {
         super(trees, burnin, false); // plain CCD1; split expansion + smoothing applied below
         if (mu <= 0 || mu >= 1) {
             throw new IllegalArgumentException("mu must be in (0, 1), got " + mu);
@@ -124,9 +162,16 @@ public class KRegCCD extends RegCCD {
         if (Double.isNaN(alpha)) {
             throw new IllegalArgumentException("KRegCCD requires split expansion (finite alpha)");
         }
+        if (mu > MU_WARN_THRESHOLD) {
+            System.err.println("WARNING: KRegCCD mu = " + mu + " > " + MU_WARN_THRESHOLD
+                    + "; the reserve-tail inflation grows ~mu^3 and becomes material here "
+                    + "(~" + String.format("%.2g", Math.pow(mu / 0.05, 3) * 0.01)
+                    + " nat/tree at this mu). Use a smaller mu, or TailMode.BOUND/SAMPLED.");
+        }
         this.mu = mu;
         this.log1mMu = Math.log(1.0 - mu);
         this.reserveBoundary = k + 2; // boundary size = novel clades + 2
+        this.tailMode = tailMode;
         expandRegCCD();
         regulariseRegCCD(alpha);
     }
@@ -134,7 +179,7 @@ public class KRegCCD extends RegCCD {
     @Override
     public String toString() {
         return "KRegCCD [mu = " + mu + ", reserve depth k = " + (reserveBoundary - 2)
-                + ", full support, split-expanded]";
+                + ", tail=" + tailMode + ", full support, split-expanded]";
     }
 
     /* ----------------------------------------------------------------------
@@ -148,6 +193,76 @@ public class KRegCCD extends RegCCD {
         double[] logp = new double[]{0.0};
         scoreFresh(tree.getRoot(), bits, logp);
         return logp[0];
+    }
+
+    /* ----------------------------------------------------------------------
+     * Calibration: total model mass on trees with at least one novel clade
+     * ------------------------------------------------------------------- */
+
+    /**
+     * The model's total probability mass on trees containing at least one novel
+     * clade, {@code P(novel) = 1 - M(root)}, where
+     * {@code M(c) = disc(c) * sum_{observed (L,R)} ccp(L,R) * M(L) * M(R)} is the
+     * mass on subtrees of {@code c} that stay entirely within the observed clade
+     * set, and {@code disc(c) = 1 - mu} for clades that reserve escape mass (the
+     * tail correction is negligible for this aggregate). Compare against the
+     * empirical fraction of held-out trees that {@link #containsNovelClade}.
+     *
+     * @return model probability that a tree contains a novel clade
+     */
+    public double getNovelCladeProbability() {
+        return 1.0 - massNoNovelClade(getRootClade(), new HashMap<>());
+    }
+
+    private double massNoNovelClade(Clade c, Map<Clade, Double> memo) {
+        if (c.isLeaf()) {
+            return 1.0;
+        }
+        Double cached = memo.get(c);
+        if (cached != null) {
+            return cached;
+        }
+        double sum = 0.0;
+        for (CladePartition p : c.getPartitions()) {
+            Clade[] ch = p.getChildClades();
+            sum += p.getCCP() * massNoNovelClade(ch[0], memo) * massNoNovelClade(ch[1], memo);
+        }
+        double m = (cheapReservable(c) ? (1.0 - mu) : 1.0) * sum;
+        memo.put(c, m);
+        return m;
+    }
+
+    /** Cheap reservability test (early-exit over the reserve-depth orders), used
+     * for the aggregate {@link #getNovelCladeProbability} where the exact tail is
+     * not needed. */
+    private boolean cheapReservable(Clade c) {
+        if (c.size() < 3) {
+            return false;
+        }
+        List<Clade> subs = observedSubclades(c);
+        enumOps = 0;
+        try {
+            for (int j = 3; j <= reserveBoundary && j <= c.size(); j++) {
+                if (countNj(c, subs, j, true) > 0) {
+                    return true;
+                }
+            }
+        } catch (BudgetExceeded e) {
+            // boundary 3 (O(m^2)) always completes
+        }
+        return false;
+    }
+
+    /** Whether the given tree contains a clade that is not in the (expanded) CCD. */
+    public boolean containsNovelClade(Tree tree) {
+        Map<Node, BitSet> bits = new HashMap<>();
+        computeBits(tree.getRoot(), bits);
+        for (Map.Entry<Node, BitSet> e : bits.entrySet()) {
+            if (!e.getKey().isLeaf() && getClade(e.getValue()) == null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private BitSet computeBits(Node v, Map<Node, BitSet> bits) {
@@ -172,8 +287,10 @@ public class KRegCCD extends RegCCD {
 
         if (isRed(vb, bits.get(c1), bits.get(c2))) {
             Clade c = getClade(vb);
-            if (reservable(c)) {
-                logp[0] += log1mMu;
+            CladeReg reg = computeReg(c);
+            if (reg.reservable()) {
+                // tail = 0 for NONE -> plain (1 - mu); otherwise (1 - mu - tail)
+                logp[0] += Math.log(1.0 - mu - reg.tail());
             }
             logp[0] += rawLogCCP(c, bits.get(c1), bits.get(c2));
             scoreFresh(c1, bits, logp);
@@ -190,7 +307,7 @@ public class KRegCCD extends RegCCD {
                 parts[i] = bits.get(boundary.get(i));
             }
             int pathcount = countAllNovelResolutions(vb, parts);
-            double logEps = cladeLogEps(c);
+            double logEps = computeReg(c).logEps();
             if (logEps == Double.NEGATIVE_INFINITY) {
                 // C reserves nothing computable: give this region fallback mass
                 // mu/pathcount (treat its own boundary as the sole reservation)
@@ -297,42 +414,23 @@ public class KRegCCD extends RegCCD {
      * Per-clade reservation: N_j and eps
      * ------------------------------------------------------------------- */
 
-    /** Does clade C reserve mu? (admits a shallow novel-clade region). Used only
-     * for the (1 - mu) discount on red splits; checks boundaries up to the reserve
-     * depth with early exit, which is cheap. */
-    private boolean reservable(Clade c) {
-        Boolean cached = reservableCache.get(c);
+    /* Per-clade reserve: solve eps from R(C) = sum_{j>=1} N_{j+2} eps^j = mu using
+     * orders up to the reserve depth (boundaries 3..reserveBoundary; climbing to the
+     * first nonzero order if those are all zero, so eps stays positive), and bound
+     * the omitted tail (orders > k) geometrically from the two computed orders:
+     *   rho = (N_2/N_1) eps,  tail <= N_2 eps^2 * rho/(1-rho)
+     * (rigorous if the N_j are log-concave; clamped to [0, mu]). Computed once per
+     * clade and cached. */
+    private CladeReg computeReg(Clade c) {
+        CladeReg cached = regCache.get(c);
         if (cached != null) {
             return cached;
         }
-        boolean result = false;
-        if (c.size() >= 3) {
-            List<Clade> subs = observedSubclades(c);
-            enumOps = 0;
-            try {
-                for (int j = 3; j <= reserveBoundary && j <= c.size(); j++) {
-                    if (countNj(c, subs, j, true) > 0) {
-                        result = true;
-                        break;
-                    }
-                }
-            } catch (BudgetExceeded e) {
-                // keep result as found so far (boundary 3 is O(m^2), always completes)
-            }
-        }
-        reservableCache.put(c, result);
-        return result;
-    }
-
-    /* log eps(C), solved from the reserve R(C) = sum_{j>=1} N_{j+2} eps^j = mu using
-     * orders up to the reserve depth (boundaries 3..reserveBoundary). If those are
-     * all zero (a clade with only deeper novel regions), climb to the first nonzero
-     * order so eps stays positive. Returns NEGATIVE_INFINITY only if nothing is
-     * found within the op budget (then scoring uses a per-region fallback). */
-    private double cladeLogEps(Clade c) {
-        Double cached = logEpsCache.get(c);
-        if (cached != null) {
-            return cached;
+        CladeReg reg;
+        if (c.size() < 3) {
+            reg = new CladeReg(false, Double.NEGATIVE_INFINITY, 0.0);
+            regCache.put(c, reg);
+            return reg;
         }
         List<Clade> subs = observedSubclades(c);
         int[] n = new int[c.size() + 1];
@@ -354,8 +452,96 @@ public class KRegCCD extends RegCCD {
             }
         }
         double logEps = anyNonzero ? solveLogEps(n, last, mu) : Double.NEGATIVE_INFINITY;
-        logEpsCache.put(c, logEps);
-        return logEps;
+
+        double tail = 0.0;
+        int n1 = n[3];
+        int n2 = (n.length > 4) ? n[4] : 0;
+        if (tailMode != TailMode.NONE && logEps != Double.NEGATIVE_INFINITY && n1 > 0 && n2 > 0) {
+            double eps = Math.exp(logEps);
+            // geometric upper bound from the two computed orders (rigorous if log-concave)
+            double rho = ((double) n2 / n1) * eps;
+            double tailUB = (rho > 0 && rho < 1) ? n2 * eps * eps * rho / (1 - rho) : mu;
+            tailUB = Math.min(tailUB, mu);
+
+            if (tailMode == TailMode.BOUND || tailUB < TAIL_SAMPLE_THRESHOLD) {
+                // BOUND mode, or a negligible bound: use the (cheap) bound directly
+                tail = tailUB;
+            } else {
+                // SAMPLED mode with a non-negligible bound: Knuth-estimate the actual
+                // tail (orders > reserve depth), summing the two leading orders
+                tail = 0.0;
+                for (int m = reserveBoundary + 1; m <= reserveBoundary + 2 && m <= c.size(); m++) {
+                    double nm = estimateNj(c, subs, m, TAIL_SAMPLES);
+                    tail += nm * Math.pow(eps, m - EXP_REDUCTION);
+                }
+                tail = Math.min(tail, mu);
+            }
+        }
+
+        reg = new CladeReg(anyNonzero, logEps, tail);
+        regCache.put(c, reg);
+        return reg;
+    }
+
+    /* Knuth (1975) backtrack-tree estimator of N_m (number of valid boundary-m
+     * partitions): average over random root-to-leaf descents of the product of
+     * branching factors, times the leaf-valid indicator. Each descent is O(m * |subs|);
+     * unbiased. */
+    private double estimateNj(Clade c, List<Clade> subs, int m, int samples) {
+        BitSet cBits = c.getCladeInBits();
+        double sum = 0.0;
+        for (int s = 0; s < samples; s++) {
+            sum += knuthDescent(cBits, subs, m);
+        }
+        return sum / samples;
+    }
+
+    private double knuthDescent(BitSet cBits, List<Clade> subs, int m) {
+        BitSet used = BitSet.newBitSet(leafArraySize);
+        double product = 1.0;
+        int startIdx = 0;
+        BitSet prev = null;
+        BitSet[] chosen = new BitSet[m];
+        for (int level = 0; level < m - 1; level++) {
+            // children = candidates at index >= startIdx disjoint from `used`
+            int d = 0;
+            for (int i = startIdx; i < subs.size(); i++) {
+                if (!subs.get(i).getCladeInBits().intersects(used)) {
+                    d++;
+                }
+            }
+            if (d == 0) {
+                return 0.0; // dead end
+            }
+            product *= d;
+            int target = rng.nextInt(d);
+            int pickIdx = -1, seen = 0;
+            for (int i = startIdx; i < subs.size(); i++) {
+                if (!subs.get(i).getCladeInBits().intersects(used)) {
+                    if (seen == target) {
+                        pickIdx = i;
+                        break;
+                    }
+                    seen++;
+                }
+            }
+            BitSet pb = subs.get(pickIdx).getCladeInBits();
+            chosen[level] = pb;
+            used = (BitSet) used.clone();
+            used.or(pb);
+            prev = pb;
+            startIdx = pickIdx + 1;
+        }
+        BitSet last = (BitSet) cBits.clone();
+        last.andNot(used);
+        if (last.cardinality() == 0 || getClade(last) == null) {
+            return 0.0;
+        }
+        if (compareBitSets(prev, last) >= 0) {
+            return 0.0; // canonical order violated
+        }
+        chosen[m - 1] = last;
+        return countAllNovelResolutions(cBits, chosen) > 0 ? product : 0.0;
     }
 
     /* Observed clades strictly contained in C, sorted in canonical (lexicographic) order. */
