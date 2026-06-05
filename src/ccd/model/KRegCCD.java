@@ -2,6 +2,7 @@ package ccd.model;
 
 import beast.base.evolution.tree.Node;
 import beast.base.evolution.tree.Tree;
+import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.model.bitsets.BitSet;
 
 import java.util.ArrayList;
@@ -160,6 +161,15 @@ public class KRegCCD extends RegCCD {
 
     private final Map<Clade, CladeReg> regCache = new HashMap<>();
 
+    /** Default per-clade escape probability used when a tool builds a KRegCCD without
+     * specifying one (e.g. via {@link CCDType#KRegCCD}); the RSV2 operating point. */
+    public static final double DEFAULT_MU = 0.01;
+    /** Default additive-smoothing pseudocount for the split-expanded backbone (shared with
+     * {@link RegCCD}'s default). */
+    public static final double DEFAULT_ALPHA = 0.4;
+    /** Default reserve depth k. */
+    public static final int DEFAULT_RESERVE_DEPTH = 2;
+
     /**
      * Default variant: reserve depth k = 2 (eps from the one- and two-novel-clade
      * orders), full-support scoring.
@@ -194,6 +204,39 @@ public class KRegCCD extends RegCCD {
     public KRegCCD(List<Tree> trees, double burnin, double mu, double alpha, int k,
                    TailMode tailMode) {
         super(trees, burnin, false); // plain CCD1; split expansion + smoothing applied below
+        validateParams(mu, k, alpha);
+        this.mu = mu;
+        this.log1mMu = Math.log(1.0 - mu);
+        this.reserveBoundary = k + 2; // boundary size = novel clades + 2
+        this.tailMode = tailMode;
+        expandRegCCD();
+        regulariseRegCCD(alpha);
+    }
+
+    /**
+     * Constructor from a burn-in-free tree set (used by the CCD tools, e.g. {@link CCDType#KRegCCD}
+     * via {@code CCDToolUtil}). Mirrors the {@link List}-based constructor: builds the plain CCD1
+     * backbone, then split-expands and additively smooths it, leaving eps to be solved per clade
+     * on demand.
+     *
+     * @param treeSet  trees without burn-in whose distribution is approximated
+     * @param mu       per-clade escape probability, in (0, 1)
+     * @param alpha    additive-smoothing pseudocount for the split-expanded backbone
+     * @param k        reserve depth (see the {@link List}-based constructor)
+     * @param tailMode how to correct for the omitted reserve tail (see {@link TailMode})
+     */
+    public KRegCCD(TreeAnnotator.TreeSet treeSet, double mu, double alpha, int k, TailMode tailMode) {
+        super(treeSet, false); // plain CCD1 from the tree set; expansion + smoothing applied below
+        validateParams(mu, k, alpha);
+        this.mu = mu;
+        this.log1mMu = Math.log(1.0 - mu);
+        this.reserveBoundary = k + 2;
+        this.tailMode = tailMode;
+        expandRegCCD();
+        regulariseRegCCD(alpha);
+    }
+
+    private static void validateParams(double mu, int k, double alpha) {
         if (mu <= 0 || mu >= 1) {
             throw new IllegalArgumentException("mu must be in (0, 1), got " + mu);
         }
@@ -209,12 +252,6 @@ public class KRegCCD extends RegCCD {
                     + "(~" + String.format("%.2g", Math.pow(mu / 0.05, 3) * 0.01)
                     + " nat/tree at this mu). Use a smaller mu, or TailMode.BOUND/SAMPLED.");
         }
-        this.mu = mu;
-        this.log1mMu = Math.log(1.0 - mu);
-        this.reserveBoundary = k + 2; // boundary size = novel clades + 2
-        this.tailMode = tailMode;
-        expandRegCCD();
-        regulariseRegCCD(alpha);
     }
 
     @Override

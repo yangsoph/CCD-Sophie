@@ -9,6 +9,7 @@ import ccd.model.CCD0;
 import ccd.model.CCD1;
 import ccd.model.CCD2;
 import ccd.model.CCDType;
+import ccd.model.KRegCCD;
 import ccd.model.OptRegCCD;
 import ccd.model.RegCCD;
 
@@ -83,6 +84,9 @@ public class CCDToolUtil {
             ccd = new RegCCD(treeSet);
         } else if (ccdType == CCDType.OptRegCCD) {
             ccd = new OptRegCCD(treeSet);
+        } else if (ccdType == CCDType.KRegCCD) {
+            ccd = new KRegCCD(treeSet, KRegCCD.DEFAULT_MU, KRegCCD.DEFAULT_ALPHA,
+                    KRegCCD.DEFAULT_RESERVE_DEPTH, KRegCCD.TailMode.BOUND);
         } else {
             throw new IllegalArgumentException("Illegal CCD type.");
         }
