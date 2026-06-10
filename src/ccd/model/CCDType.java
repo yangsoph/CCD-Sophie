@@ -42,6 +42,16 @@ public enum CCDType {
         public AbstractCCD emptyCCDOfType(int numberOfLeaves) {
             return new OptRegCCD(numberOfLeaves);
         }
+    },
+    KRegCCD("KRegCCD") {
+        @Override
+        public AbstractCCD emptyCCDOfType(int numberOfLeaves) {
+            // KRegCCD needs the whole tree set and mu/alpha at construction (to split-expand,
+            // smooth, and solve the per-clade escape), so it cannot be built empty and fed
+            // trees incrementally. Build it from a tree set / tree list instead.
+            throw new UnsupportedOperationException(
+                    "KRegCCD cannot be built incrementally; construct it from a tree set or list.");
+        }
     };
 
 	String ccdType;
@@ -67,6 +77,8 @@ public enum CCDType {
         } else if (name.equalsIgnoreCase("1sj") || name.equalsIgnoreCase("sj")
                 || name.equalsIgnoreCase("ccd1sj")) {
             return CCD1SJ;
+        } else if (name.equalsIgnoreCase("kreg") || name.equalsIgnoreCase("kregccd")) {
+            return KRegCCD;
         }
 
         throw new IllegalArgumentException("No CCD type with name '" + name + "' found." +

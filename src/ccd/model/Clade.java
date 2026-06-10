@@ -65,6 +65,13 @@ public class Clade {
     private double parameter = -1;
 
     /**
+     * Whether this clade was introduced by NNI clade expansion (i.e. it is not
+     * an observed clade). Used by two-level regularisation to give NNI-derived
+     * splits a separate pseudocount.
+     */
+    private boolean nniExpanded = false;
+
+    /**
      * Child clades this clade is split into.
      */
     protected ArrayList<Clade> childClades;
@@ -197,6 +204,7 @@ public class Clade {
         Clade copiedClade = new Clade((BitSet) this.cladeAsBitSet.clone(), targetCCD);
         copiedClade.increaseOccurrenceCountBy(getNumberOfOccurrences(), getMeanOccurredHeight());
         copiedClade.setCladeParameter(this.getCladeParameter());
+        copiedClade.setNNIExpanded(this.isNNIExpanded());
         return copiedClade;
     }
 
@@ -620,6 +628,16 @@ public class Clade {
     /** @return custom parameter of this clade */
     public double getCladeParameter() {
         return this.parameter;
+    }
+
+    /** @return whether this clade was introduced by NNI clade expansion */
+    public boolean isNNIExpanded() {
+        return this.nniExpanded;
+    }
+
+    /** @param nniExpanded whether this clade was introduced by NNI clade expansion */
+    public void setNNIExpanded(boolean nniExpanded) {
+        this.nniExpanded = nniExpanded;
     }
 
     /* -- GETTERS RECURSIVE VALUES -- */
