@@ -104,6 +104,29 @@ public class KRegCCD extends RegCCD {
     private final TailMode tailMode;
 
     /**
+     * How novel-clade mass is weighted across the distinct novel resolutions of a blue region.
+     * <ul>
+     *   <li>{@link #SHARED}: the original scheme. Each observed-subclade boundary reserves a total
+     *       {@code eps^(m-2)}, shared evenly among its {@code pathcount} all-novel resolutions, so
+     *       a tree is priced {@code eps^(m-2) / pathcount} and the reserve sums boundary counts
+     *       {@code N_j}. This penalises novel clades clustered into one region (pathcount grows
+     *       ~{@code (2k+1)!!}).</li>
+     *   <li>{@link #FLAT}: every distinct novel resolution is priced {@code eps^(m-2)} directly
+     *       (no {@code /pathcount}), and the reserve sums tree counts {@code M_j = sum of pathcount
+     *       over boundaries}. This penalises each novel clade equally, independent of clustering.</li>
+     * </ul>
+     * Both are self-consistent, properly normalised priors (the reserve count and the per-tree
+     * normaliser are a matched pair); they agree at the single-novel-clade order and diverge only
+     * for clustered multi-clade regions.
+     */
+    public enum NovelMode {SHARED, FLAT}
+
+    private final NovelMode novelMode;
+
+    /** Default novel-clade weighting (clustering-neutral). */
+    public static final NovelMode DEFAULT_NOVEL_MODE = NovelMode.FLAT;
+
+    /**
      * Largest {@code mu} at which the depth-{@code k} reserve approximation stays reliable. Above
      * it the omitted reserve tail grows ~{@code mu^3} and the un-corrected (NONE) inflation becomes
      * material (&gt; ~0.01 nat/tree), so the model should not be operated — nor its parameters
@@ -148,6 +171,7 @@ public class KRegCCD extends RegCCD {
 
     /** Reservoir state for {@link #sampleBoundary}: count of valid boundaries seen so far. */
     private int boundarySeen;
+    private double boundaryWeightSeen; // weighted-reservoir accumulator for FLAT boundary sampling
     /** Reservoir state for {@link #sampleBoundary}: the boundary currently selected. */
     private BitSet[] boundaryPick;
 
@@ -212,12 +236,21 @@ public class KRegCCD extends RegCCD {
      */
     public KRegCCD(List<Tree> trees, double burnin, double mu, double alpha, int k,
                    TailMode tailMode) {
+        this(trees, burnin, mu, alpha, k, tailMode, DEFAULT_NOVEL_MODE);
+    }
+
+    /**
+     * @param novelMode how novel-clade mass is weighted across resolutions (see {@link NovelMode})
+     */
+    public KRegCCD(List<Tree> trees, double burnin, double mu, double alpha, int k,
+                   TailMode tailMode, NovelMode novelMode) {
         super(trees, burnin, false); // plain CCD1; split expansion + smoothing applied below
         validateParams(mu, k, alpha);
         this.mu = mu;
         this.log1mMu = Math.log(1.0 - mu);
         this.reserveBoundary = k + 2; // boundary size = novel clades + 2
         this.tailMode = tailMode;
+        this.novelMode = novelMode;
         expandRegCCD();
         regulariseRegCCD(alpha);
     }
@@ -235,12 +268,21 @@ public class KRegCCD extends RegCCD {
      * @param tailMode how to correct for the omitted reserve tail (see {@link TailMode})
      */
     public KRegCCD(TreeAnnotator.TreeSet treeSet, double mu, double alpha, int k, TailMode tailMode) {
+        this(treeSet, mu, alpha, k, tailMode, DEFAULT_NOVEL_MODE);
+    }
+
+    /**
+     * @param novelMode how novel-clade mass is weighted across resolutions (see {@link NovelMode})
+     */
+    public KRegCCD(TreeAnnotator.TreeSet treeSet, double mu, double alpha, int k, TailMode tailMode,
+                   NovelMode novelMode) {
         super(treeSet, false); // plain CCD1 from the tree set; expansion + smoothing applied below
         validateParams(mu, k, alpha);
         this.mu = mu;
         this.log1mMu = Math.log(1.0 - mu);
         this.reserveBoundary = k + 2;
         this.tailMode = tailMode;
+        this.novelMode = novelMode;
         expandRegCCD();
         regulariseRegCCD(alpha);
     }
@@ -285,7 +327,7 @@ public class KRegCCD extends RegCCD {
     @Override
     public String toString() {
         return "KRegCCD [mu = " + mu + ", reserve depth k = " + (reserveBoundary - 2)
-                + ", tail=" + tailMode + ", full support, split-expanded]";
+                + ", tail=" + tailMode + ", novel=" + novelMode + ", full support, split-expanded]";
     }
 
     /* ----------------------------------------------------------------------
@@ -319,6 +361,28 @@ public class KRegCCD extends RegCCD {
         double[] logp = new double[]{0.0};
         scoreFresh(tree.getRoot(), bits, logp, scoreMu, false);
         return logp[0];
+    }
+
+    /**
+     * Number of internal clades of {@code tree} that are not present in this CCD's observed clade
+     * set (the novel-clade count = the total {@code m-2} over the tree's blue regions). This is the
+     * exponent that the per-region {@code eps} factors are raised to, and is mode-independent (it
+     * depends only on the observed backbone, not on SHARED/FLAT weighting). Useful for bucketing
+     * held-out trees by how much novel (clustered) structure they carry.
+     */
+    public int novelCladeCount(Tree tree) {
+        Map<Node, BitSet> bits = new HashMap<>();
+        computeBits(tree.getRoot(), bits);
+        int count = 0;
+        for (Node v : tree.getNodesAsArray()) {
+            if (v.isLeaf()) {
+                continue;
+            }
+            if (getClade(bits.get(v)) == null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /* ----------------------------------------------------------------------
@@ -441,15 +505,18 @@ public class KRegCCD extends RegCCD {
             for (int i = 0; i < m; i++) {
                 parts[i] = bits.get(boundary.get(i));
             }
-            int pathcount = countAllNovelResolutions(vb, parts);
+            // SHARED shares a boundary's eps^(m-2) over its pathcount resolutions (-> -log pathcount);
+            // FLAT prices each distinct resolution eps^(m-2) directly (no pathcount normaliser).
+            double logPath = (novelMode == NovelMode.FLAT)
+                    ? 0.0 : Math.log(countAllNovelResolutions(vb, parts));
             double logEps = useStoredReg ? computeReg(c).logEps() : logEpsAtMu(c, scoreMu);
             if (logEps == Double.NEGATIVE_INFINITY) {
                 // C reserves nothing computable: give this region fallback mass
-                // mu/pathcount (treat its own boundary as the sole reservation)
-                logp[0] += Math.log(scoreMu) - Math.log(pathcount);
+                // mu (SHARED: shared over its pathcount resolutions)
+                logp[0] += Math.log(scoreMu) - logPath;
             } else {
                 // m - 2 = number of novel clades in this region: one log eps each
-                logp[0] += (m - EXP_REDUCTION) * logEps - Math.log(pathcount);
+                logp[0] += (m - EXP_REDUCTION) * logEps - logPath;
             }
             for (Node b : boundary) {
                 scoreFresh(b, bits, logp, scoreMu, useStoredReg);
@@ -643,8 +710,14 @@ public class KRegCCD extends RegCCD {
 
         double topHeight = regionTopHeight(c, heightStrategy);
         Node region = assembleRegion(res.shape(), boundaryNodes, c, topHeight, heightStrategy);
-        // One factor of eps per novel clade (m - 2 of them), spread over the pathcount resolutions.
-        applyLogFactor(region, (m - EXP_REDUCTION) * reg.logEps() - Math.log(res.pathcount()));
+        // One factor of eps per novel clade (m - 2 of them). SHARED spreads it over the pathcount
+        // resolutions (-log pathcount); FLAT prices the resolution directly (boundary already drawn
+        // proportional to pathcount above), matching the FLAT scorer.
+        double regionFactor = (m - EXP_REDUCTION) * reg.logEps();
+        if (novelMode == NovelMode.SHARED) {
+            regionFactor -= Math.log(res.pathcount());
+        }
+        applyLogFactor(region, regionFactor);
         return region;
     }
 
@@ -653,6 +726,7 @@ public class KRegCCD extends RegCCD {
      * enumeration {@link #countNj} counts. Returns the chosen parts, or {@code null} if none. */
     private BitSet[] sampleBoundary(Clade c, List<Clade> subs, int m) {
         boundarySeen = 0;
+        boundaryWeightSeen = 0.0;
         boundaryPick = null;
         enumOps = 0;
         sampleBoundaryWalk(c.getCladeInBits(), subs, m, 0,
@@ -679,12 +753,22 @@ public class KRegCCD extends RegCCD {
                 parts[i] = chosen.get(i);
             }
             parts[m - 1] = last;
-            if (countAllNovelResolutions(cBits, parts) <= 0) {
+            int pc = countAllNovelResolutions(cBits, parts);
+            if (pc <= 0) {
                 return;
             }
-            boundarySeen++;
-            if (random.nextInt(boundarySeen) == 0) { // reservoir: keep with probability 1/seen
-                boundaryPick = parts;
+            if (novelMode == NovelMode.FLAT) {
+                // FLAT samples a boundary in proportion to its pathcount (so that, with the
+                // uniform resolution pick below, every distinct novel tree is equiprobable).
+                boundaryWeightSeen += pc;
+                if (random.nextDouble() * boundaryWeightSeen < pc) { // weighted reservoir
+                    boundaryPick = parts;
+                }
+            } else {
+                boundarySeen++;
+                if (random.nextInt(boundarySeen) == 0) { // uniform reservoir: keep with prob 1/seen
+                    boundaryPick = parts;
+                }
             }
             return;
         }
@@ -1136,7 +1220,10 @@ public class KRegCCD extends RegCCD {
                 parts[i] = chosen.get(i);
             }
             parts[m - 1] = last;
-            return countAllNovelResolutions(cBits, parts) > 0 ? 1 : 0;
+            // SHARED counts admissible boundaries (N_j, an indicator); FLAT counts distinct novel
+            // trees (M_j = sum of pathcount over boundaries) by returning the pathcount itself.
+            int res = countAllNovelResolutions(cBits, parts);
+            return novelMode == NovelMode.FLAT ? res : (res > 0 ? 1 : 0);
         }
         int count = 0;
         for (int i = startIdx; i < subs.size(); i++) {

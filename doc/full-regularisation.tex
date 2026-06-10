@@ -196,6 +196,71 @@ blue-region counterpart of the factor-$1.2$ calibration that
 Appendix~A obtains from the two-parameter $(\alpha,\beta)$ smoothing, here from one
 parameter and the closed-form recursion \eqref{eq:pnovel}.
 
+\paragraph{Two weightings of the unseen region.}
+The pathcount normaliser $\pi(C,\partial B)$ in \eqref{eq:blueregion}, together with
+its matched partition count $N_j$ in \eqref{eq:reserve}, encodes a modelling
+\emph{choice} about how a region's escape mass is divided among the distinct novel
+trees that realise it. Two self-consistent (properly normalised) weightings sit at
+the extremes:
+\begin{itemize}
+  \item \textbf{Shared} (the form above). A boundary $\partial B$ reserves a total
+  $\epsilon(C)^{m-2}$, shared uniformly over its $\pi(C,\partial B)$ all-novel
+  resolutions, so each tree is priced $\epsilon^{m-2}/\pi$ and the reserve counts
+  \emph{boundaries}, $N_j(C)$. Because $\pi$ grows super-exponentially with the
+  number of novel clades packed into one region ($\pi\sim(2k{-}3)!!$ for a region of
+  $k$ parts), this \emph{penalises clustered novelty}: the marginal cost of adding a
+  novel clade inside an existing region grows with the cluster.
+  \item \textbf{Flat} (locally Boltzmann). Drop the $\pi$ normaliser and price each
+  distinct novel resolution at $\epsilon(C)^{m-2}$ directly; the reserve then counts
+  novel \emph{trees},
+  \begin{equation}
+    R(C)=\sum_{j\ge1} M_j(C)\,\epsilon(C)^j=\mu,
+    \qquad
+    M_j(C)=\!\!\sum_{\partial B:\;|\partial B|=j+2}\!\!\pi(C,\partial B),
+    \label{eq:flatreserve}
+  \end{equation}
+  the number of all-novel resolutions of $C$ with $j$ novel intermediate clades.
+  Each novel clade now costs a constant factor $\epsilon(C)$ irrespective of how many
+  others share its region, so within a region $\log P$ falls by a constant
+  $\log\epsilon$ per discordant clade: the prior is \emph{locally Boltzmann in
+  Robinson--Foulds distance} ($\epsilon(C)$ remains depth-dependent across regions,
+  so it is not globally so).
+\end{itemize}
+Both weightings reserve the same total mass $\mu$ at each clade; they differ only in
+how it is spread. They coincide exactly on trees with no novel clade (scored on the
+red backbone alone) and at the single-novel-clade order ($M_1\approx 2N_1$, so
+$\epsilon$ halves and the dropped $1/\pi$ cancels), and diverge only for clustered,
+multi-clade regions --- precisely the trees a poorly sampled support produces.
+
+\paragraph{Which weighting, and when.}
+The choice is decided by how clustered the held-out novelty is, which is in turn set
+by how well the training posterior is sampled. Training a backbone
+($\alpha=0.4$, $k=2$) on a leading block of the RSV2 posterior and scoring a disjoint
+held-out block, we bucket each held-out tree by its number of novel clades and report
+the flat$-$shared difference in mean held-out log-probability (nat/tree, at the
+selected $\mu$):
+\begin{center}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{lrrrrr}
+\hline
+training set & frac.\ $\ge2$-novel & $\Delta_0$ & $\Delta_1$ & $\Delta_{\ge2}$ & $\Delta_{\text{all}}$ \\
+\hline
+saturated ($7{,}200$ trees) & $0.5\%$ & $0.000$ & $-0.25$ & $+0.31$ & $-0.005$ \\
+sparse ($1{,}000$ trees)    & $6.0\%$ & $0.000$ & $-0.18$ & $+0.70$ & $\mathbf{+0.018}$ \\
+\hline
+\end{tabular}
+\end{center}
+Here $\Delta_b$ is the flat$-$shared difference restricted to held-out trees with
+$b$ novel clades, and $\Delta_{\text{all}}$ is the overall mean. The difference lives
+entirely in the novel-clade trees: identically zero on the (majority) observed-clade
+trees, negative on single-novel-clade trees --- where the flat weighting diverts mass
+toward clustered configurations --- and strongly positive on clustered ($\ge2$)
+trees, where it declines to penalise clustering. A well-sampled support produces
+almost no clustered novelty ($0.5\%$ of held-out trees), so shared is marginally
+sharper overall; a sparsely sampled support produces it routinely ($6.0\%$), and flat
+wins by $0.018$ nat/tree. Since regularisation is needed \emph{precisely} when the
+support is incomplete, we take the flat (locally Boltzmann) weighting as the default.
+
 \paragraph{Why this is preferred.}
 The blue-region construction matches the NNI expansion's coverage and sharpness
 while being strictly simpler and more general:
