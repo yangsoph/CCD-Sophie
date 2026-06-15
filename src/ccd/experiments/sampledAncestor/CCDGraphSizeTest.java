@@ -1,4 +1,4 @@
-package ccd.experiments;
+package ccd.experiments.sampledAncestor;
 
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.TreeDistances;

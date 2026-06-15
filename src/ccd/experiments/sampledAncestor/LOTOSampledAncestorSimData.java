@@ -1,4 +1,4 @@
-package ccd.experiments;
+package ccd.experiments.sampledAncestor;
 
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;

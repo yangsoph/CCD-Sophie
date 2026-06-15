@@ -1,4 +1,4 @@
-package ccd.experiments;
+package ccd.experiments.sampledAncestor;
 
 import ccd.model.bitsets.BitSet;
 
@@ -14,7 +14,7 @@ public class BitSetTest {
         System.out.println("get(0) = " + cladeInBits.get(0));
         System.out.println("get(1) = " + cladeInBits.get(1));
         System.out.println("get(2) = " + cladeInBits.get(2));
-        BitSet sub = cladeInBits.getSubset(4,6);
+        BitSet sub = cladeInBits.getSubset(4, 6);
         System.out.println("sub length = " + sub.length());
         System.out.println(sub.get(1));
     }

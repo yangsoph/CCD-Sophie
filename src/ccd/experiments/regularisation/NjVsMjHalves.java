@@ -1,4 +1,4 @@
-package ccd.experiments;
+package ccd.experiments.regularisation;
 
 import beast.base.evolution.tree.Tree;
 import ccd.algorithms.LoadOrStoreTrees;
@@ -15,14 +15,14 @@ import java.util.List;
  * novel clades), chain drift across the halves puts genuinely CLUSTERED novelty into the test set
  * -- exactly the regime where FLAT (locally Boltzmann, no clustering penalty) and SHARED (clustering
  * penalised via /pathcount) diverge.
- *
+ * <p>
  * Reports a novel-clade-count histogram of the test set, and the FLAT-SHARED held-out log-prob
  * margin split by novel-clade bucket, so the difference can be read off where it actually lives.
- *
+ * <p>
  * Usage: NjVsMjHalves <trees-file> [burnin=0.1] [trainSize=n/2] [testTail=rest]
- *   trainSize : number of trees from the START (post-burnin) used to train.
- *   testTail  : number of trees from the END used to test (a gap between them widens the
- *               train/test separation, surfacing more novel/clustered structure).
+ * trainSize : number of trees from the START (post-burnin) used to train.
+ * testTail  : number of trees from the END used to test (a gap between them widens the
+ * train/test separation, surfacing more novel/clustered structure).
  */
 public class NjVsMjHalves {
 
@@ -98,13 +98,19 @@ public class NjVsMjHalves {
             for (int i = 0; i < test.size(); i++) {
                 double s = shared.getLogProbabilityOfTree(test.get(i), mu);
                 double f = flat.getLogProbabilityOfTree(test.get(i), mu);
-                sTot += s; fTot += f;
-                sB[bucketOf[i]] += s; fB[bucketOf[i]] += f;
+                sTot += s;
+                fTot += f;
+                sB[bucketOf[i]] += s;
+                fB[bucketOf[i]] += f;
             }
             System.out.printf("%-8.4f | %14.2f | %14.2f | %+14.2f%n", mu, sTot, fTot, fTot - sTot);
-            if (sTot > bestShared) { bestShared = sTot; bestSharedMu = mu; }
+            if (sTot > bestShared) {
+                bestShared = sTot;
+                bestSharedMu = mu;
+            }
             if (fTot > bestFlat) {
-                bestFlat = fTot; bestFlatMu = mu;
+                bestFlat = fTot;
+                bestFlatMu = mu;
                 for (int b = 0; b < 3; b++) bucketDiffAtBestFlat[b][0] = fB[b] - sB[b];
             }
         }
@@ -129,6 +135,8 @@ public class NjVsMjHalves {
     private static int hist1(int[] hist, int bucket) {
         if (bucket == 0) return hist[0];
         if (bucket == 1) return hist[1];
-        int s = 0; for (int k = 2; k < hist.length; k++) s += hist[k]; return s;
+        int s = 0;
+        for (int k = 2; k < hist.length; k++) s += hist[k];
+        return s;
     }
 }

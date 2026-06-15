@@ -1,4 +1,4 @@
-package ccd.experiments;
+package ccd.experiments.regularisation;
 
 import beast.base.evolution.tree.Tree;
 import ccd.algorithms.LoadOrStoreTrees;
@@ -14,7 +14,7 @@ import java.util.List;
  * (M_j tree counts, no /pathcount; clustering-neutral). Both modes are scored on the SAME folds
  * over a shared mu grid (alpha fixed), so the only thing that varies is the weighting. Higher
  * held-out total log-probability fits the posterior better.
- *
+ * <p>
  * Usage: NjVsMjRSV2 <trees-file> [burninFraction] [folds] [maxTrees]
  */
 public class NjVsMjRSV2 {
@@ -87,8 +87,14 @@ public class NjVsMjRSV2 {
         for (int g = 0; g < MU_GRID.length; g++) {
             System.out.printf("%-8.3f | %14.2f | %14.2f | %+14.2f%n",
                     MU_GRID[g], sharedTotal[g], flatTotal[g], flatTotal[g] - sharedTotal[g]);
-            if (sharedTotal[g] > bestShared) { bestShared = sharedTotal[g]; bestSharedMu = MU_GRID[g]; }
-            if (flatTotal[g] > bestFlat) { bestFlat = flatTotal[g]; bestFlatMu = MU_GRID[g]; }
+            if (sharedTotal[g] > bestShared) {
+                bestShared = sharedTotal[g];
+                bestSharedMu = MU_GRID[g];
+            }
+            if (flatTotal[g] > bestFlat) {
+                bestFlat = flatTotal[g];
+                bestFlatMu = MU_GRID[g];
+            }
         }
 
         System.out.printf("%nBest SHARED (N_j): total=%.2f at mu=%.3f  (%.4f nat/tree)%n",
