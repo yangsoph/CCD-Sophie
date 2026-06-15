@@ -195,10 +195,14 @@ about \emph{which} unseen tree, not miscalibration of the \emph{total} novel mas
 \paragraph{Weighting and sample size.}
 The figures above use the FLAT (clustering-neutral) weighting. The SHARED weighting
 shares a boundary's escape mass over its pathcount resolutions, penalising
-\emph{clustered} novel clades; it fits better once many clades are directly sampled
-(large $N$), where held-out novelty is dominated by single, unclustered novel
-clades, while FLAT is preferable at small $N$. Because SHARED spreads novel mass
-less, at large $N$ its entropy at $\mu^{*}$ is expected to fall somewhat below the
-FLAT values reported here, with a correspondingly smaller flatness gap.
+\emph{clustered} novel clades. On the 8192-tree block SHARED is indeed the better
+fit, but only marginally: held-out log-probability higher by $0.0033$ nat/tree, and
+entropy at $\mu^{*}$ essentially unchanged ($54.783$ vs FLAT's $54.785$). The reason
+is that at large $N$ the held-out-optimal $\mu^{*}\approx6\times10^{-4}$ is small
+enough that escape is almost entirely \emph{single} novel clades --- the order at
+which FLAT and SHARED coincide --- so the two weightings, which differ only on
+clustered novelty (mass $\sim\eps^{2}$), are near-identical here. The distinction
+bites at smaller $N$ (larger $\mu^{*}$); at the large-$N$ operating points the
+entropy figures reported here are weighting-independent to three decimals.
 
 \end{document}
