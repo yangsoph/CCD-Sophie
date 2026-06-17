@@ -386,6 +386,296 @@ public class KRegCCD extends RegCCD {
     }
 
     /* ----------------------------------------------------------------------
+     * Entropy
+     *
+     * The inherited CCD entropy (AbstractCCD.getEntropy / getEntropyLewis, the
+     * Lewis et al. 2016 recursion) sums only over observed clade partitions and
+     * treats their CCPs as a complete distribution. That is the entropy of the
+     * renormalised red-only backbone (the smoothed, split-expanded CCD1) -- it
+     * silently drops the escape mass mu, the blue regions, and the whole
+     * novel-clade support, so it is the WRONG quantity for the full-support
+     * KRegCCD. We provide two estimators of the real thing instead:
+     *
+     *  - getEntropyMonteCarlo: a plug-in average -mean(log P) over trees drawn
+     *    from the model's own sampler. Simple, public-API only, with a reported
+     *    standard error; bias is the O(mu)-per-reserving-boundary-part gap the
+     *    sampler already carries (negligible at the operating mu <= 0.05).
+     *
+     *  - getEntropyRecursive: a generalisation of the Lewis recursion to the
+     *    escape mixture. Exact for the self-consistent escape distribution
+     *    (tail = 0, escape mass exactly mu, region orders 1..k), modulo the same
+     *    op-budget truncation the rest of the model uses; far lower variance.
+     *
+     * {@link #getEntropy()} mirrors {@link #sampleTree()}: it reports the entropy of whichever
+     * distribution the sampler would draw at the current {@link SamplingFidelity} -- the exact
+     * recursion for SELF_CONSISTENT, the Monte-Carlo plug-in for FULL_SUPPORT (whose reserve tail
+     * has no cheap closed form). Under SELF_CONSISTENT both estimators target the same normalised,
+     * tail-excluded distribution, so they are directly comparable; on small trees, where the model
+     * normalises exactly, they agree with the brute-force entropy.
+     * ------------------------------------------------------------------- */
+
+    /** Number of sampled trees used by {@link #getEntropy()} (the default Monte-Carlo path is
+     * not used; the recursion is). Kept for the convenience overload. */
+    public static final int DEFAULT_ENTROPY_SAMPLES = 100_000;
+
+    /**
+     * The inherited Lewis-recursion entropy is invalid for a full-support model (it ignores escape
+     * mass and novel clades). Use {@link #getEntropy()} (the generalised recursion) or
+     * {@link #getEntropyMonteCarlo(int)} instead.
+     */
+    @Override
+    public double getEntropyLewis() {
+        throw new UnsupportedOperationException(
+                "The Lewis-recursion entropy only covers observed clade partitions and so omits "
+                        + "KRegCCD's escape mass and novel-clade support. Use getEntropy() (the "
+                        + "generalised recursion) or getEntropyMonteCarlo(samples).");
+    }
+
+    /**
+     * Entropy (in nats) of the KRegCCD topology distribution that {@link #sampleTree()} would draw
+     * from at the current {@link SamplingFidelity} -- so the reported entropy always matches the
+     * distribution the sampler produces. Like the sampler, the mode is read from
+     * {@link #setSamplingFidelity}:
+     * <ul>
+     *   <li>{@link SamplingFidelity#SELF_CONSISTENT}: the normalised distribution with escape mass
+     *       exactly {@code mu} and blue regions only up to reserve depth {@code k}. Computed by the
+     *       exact, deterministic recursion {@link #getEntropyRecursive()}.</li>
+     *   <li>{@link SamplingFidelity#FULL_SUPPORT}: the full model, including the reserve tail
+     *       (regions deeper than {@code k}). The tail is the same #P-hard quantity the sampler
+     *       Knuth-estimates, so there is no cheap exact recursion for it; this falls back to the
+     *       Monte-Carlo plug-in {@link #getEntropyMonteCarlo(int)} ({@link #DEFAULT_ENTROPY_SAMPLES}
+     *       samples), exactly as full-support <em>sampling</em> relies on the Knuth tail.</li>
+     * </ul>
+     * For the two estimators to be mutually consistent (and the Monte-Carlo path unbiased), pair the
+     * fidelity with the matching {@link TailMode} the sampler expects -- {@code SELF_CONSISTENT} with
+     * {@link TailMode#NONE}, {@code FULL_SUPPORT} with {@link TailMode#SAMPLED} -- so the sampler's
+     * red discount {@code (1 - mu - tail)} matches its escape mass. Overrides the inherited
+     * observed-only formula, which is wrong for a full-support model.
+     */
+    @Override
+    public double getEntropy() {
+        return switch (samplingFidelity) {
+            case SELF_CONSISTENT -> getEntropyRecursive();
+            case FULL_SUPPORT -> {
+                if (tailMode == TailMode.NONE) {
+                    System.err.println("WARNING: getEntropy() in FULL_SUPPORT fidelity on a "
+                            + "TailMode.NONE model is biased: the sampler escapes with mu + tail but "
+                            + "the red discount omits the tail (super-normalised). Build with "
+                            + "TailMode.SAMPLED for an unbiased full-support entropy.");
+                }
+                yield getEntropyMonteCarlo(DEFAULT_ENTROPY_SAMPLES)[0];
+            }
+        };
+    }
+
+    /**
+     * Monte-Carlo plug-in estimate of the entropy: draw {@code samples} trees from the model's
+     * sampler and average their negative log-probability,
+     * {@code H = -mean(log P(T_s))}. Returns {@code {entropy, standardError}} (both in nats), the
+     * standard error being {@code sd(log P) / sqrt(samples)}.
+     *
+     * <p>This estimates {@code -E_Q[log P]} where {@code Q} is the sampler's distribution and
+     * {@code P} the scored distribution; the two coincide except for the sampler's
+     * {@code O(mu)}-per-reserving-boundary-part reservation (the same gap documented on
+     * {@link SamplingFidelity}), so on trees small enough that no boundary part reserves (P == Q,
+     * exactly normalised) this is an unbiased estimate of the true entropy. Set the RNG via
+     * {@link #setRandom} for reproducibility; uses the current {@link SamplingFidelity}.
+     */
+    public double[] getEntropyMonteCarlo(int samples) {
+        if (samples < 2) {
+            throw new IllegalArgumentException("need at least 2 samples for a standard error");
+        }
+        double sumLogP = 0.0;
+        double sumLogP2 = 0.0;
+        for (int s = 0; s < samples; s++) {
+            Tree t = sampleTree(HeightSettingStrategy.None);
+            double logp = (Double) t.getRoot().getMetaData(LOG_PROB_SUBTREE_KEY);
+            sumLogP += logp;
+            sumLogP2 += logp * logp;
+        }
+        double meanLogP = sumLogP / samples;
+        double varLogP = Math.max(0.0, sumLogP2 / samples - meanLogP * meanLogP);
+        double stdErr = Math.sqrt(varLogP / samples);
+        return new double[]{-meanLogP, stdErr};
+    }
+
+    /**
+     * Generalised Lewis recursion for the full-support entropy. The KRegCCD distribution is
+     * generated by the same recursive branching process the sampler walks, so entropy decomposes by
+     * the chain rule over the observed-clade DAG. At a reservable clade {@code C} the immediate
+     * decision is a mixture: with probability {@code 1 - mu} an observed (red) split (weighted by
+     * its CCP), and with probability {@code mu} an escape into a blue region. Writing
+     * {@code H_free(C)} for the entropy of the subtree generated when {@code C} may escape and
+     * {@code H_red(C)} for when {@code C} is forced to take an observed split (a blue region's
+     * boundary part), with escape mass {@code mu} and {@code eps = eps(C)}:
+     * <pre>
+     *   H_red(C)  = sum_(L,R) ccp(L,R) * ( -log ccp(L,R) + H_free(L) + H_free(R) )
+     *   H_free(C) = (1 - mu) * ( -log(1 - mu) + H_red(C) )                       // red branch
+     *             + (-log eps) * sum_m (m-2) * N_m * eps^(m-2)                   // blue self-information
+     *             + sum_(regions) P(region) * sum_i H_red(B_i)                   // blue children (forced red)
+     * </pre>
+     * The red part and the blue self-information are exact (finite sums over the computed orders).
+     * The blue-children term is computed exactly by enumerating the same canonical boundaries the
+     * reserve uses (FLAT weights each boundary by its pathcount, SHARED by one), bounded by the same
+     * op-budget; for SHARED the per-boundary {@code log pathcount} self-information is accumulated in
+     * the same pass. Clades are processed in increasing size so every child and boundary part is
+     * already memoised when a clade is reached (the enumeration then does no nested re-entry).
+     *
+     * @return the entropy (in nats) of the self-consistent (tail = 0, escape mass {@code mu})
+     *         KRegCCD distribution
+     */
+    public double getEntropyRecursive() {
+        Map<Clade, Double> freeMemo = new HashMap<>();
+        Map<Clade, Double> redMemo = new HashMap<>();
+        List<Clade> clades = new ArrayList<>(getClades());
+        clades.sort((a, b) -> Integer.compare(a.size(), b.size()));
+        for (Clade c : clades) {
+            entropyRedForced(c, freeMemo, redMemo);
+            entropyFree(c, freeMemo, redMemo);
+        }
+        return freeMemo.getOrDefault(getRootClade(), 0.0);
+    }
+
+    /** Entropy of the subtree generated at {@code c} when {@code c} may escape (the root, or a red
+     * child of another node). Assumes all strictly-smaller clades are already memoised. */
+    private double entropyFree(Clade c, Map<Clade, Double> freeMemo, Map<Clade, Double> redMemo) {
+        if (c.isLeaf()) {
+            return 0.0;
+        }
+        Double cached = freeMemo.get(c);
+        if (cached != null) {
+            return cached;
+        }
+        CladeReg reg = computeReg(c);
+        double h;
+        if (!reg.reservable()) {
+            h = entropyRedForced(c, freeMemo, redMemo); // no escape mass: pure observed-split node
+        } else {
+            double eps = Math.exp(reg.logEps());
+            int[] n = reg.nCounts();
+            int last = reg.lastBoundary();
+            // self-consistent order weights w[m] = N_m * eps^(m-2), m = 3..last; sum == mu by the
+            // eps-solve. "blueSelfInfoSum" accumulates sum_m (m-2) w[m] for the blue self-information.
+            double escapeMass = 0.0;
+            double blueSelfInfoSum = 0.0;
+            for (int m = 3; m <= last; m++) {
+                if (n[m] > 0) {
+                    double w = n[m] * Math.pow(eps, m - EXP_REDUCTION);
+                    escapeMass += w;
+                    blueSelfInfoSum += (m - EXP_REDUCTION) * w;
+                }
+            }
+            double redMass = 1.0 - escapeMass;
+            double redContribution = redMass * (-Math.log(redMass) + entropyRedForced(c, freeMemo, redMemo));
+            BlueTerms blue = blueContribution(c, reg, eps, freeMemo, redMemo);
+            // FLAT: blue self-information is exactly -log(eps) * sum_m (m-2) w[m]. SHARED adds the
+            // per-region -log(1/pathcount) = +log(pathcount) self-information collected by the enumeration.
+            double blueSelfInfo = -reg.logEps() * blueSelfInfoSum + blue.extraLogPc();
+            h = redContribution + blueSelfInfo + blue.childEntropy();
+        }
+        freeMemo.put(c, h);
+        return h;
+    }
+
+    /** Entropy of the subtree generated at {@code c} when {@code c} is forced to take an observed
+     * (red) split -- i.e. as a blue region's boundary part: split ~ CCP, children free. Assumes all
+     * strictly-smaller clades are already memoised. */
+    private double entropyRedForced(Clade c, Map<Clade, Double> freeMemo, Map<Clade, Double> redMemo) {
+        if (c.isLeaf()) {
+            return 0.0;
+        }
+        Double cached = redMemo.get(c);
+        if (cached != null) {
+            return cached;
+        }
+        double h = 0.0;
+        for (CladePartition p : c.getPartitions()) {
+            double ccp = p.getCCP();
+            Clade[] ch = p.getChildClades();
+            h += ccp * (-p.getLogCCP()
+                    + entropyFree(ch[0], freeMemo, redMemo) + entropyFree(ch[1], freeMemo, redMemo));
+        }
+        redMemo.put(c, h);
+        return h;
+    }
+
+    /** The two enumeration-derived parts of a clade's blue (escape) entropy contribution:
+     * {@code childEntropy} = sum over regions of P(region) * sum_i H_red(boundary part i), and
+     * {@code extraLogPc} = the SHARED-only per-region +log(pathcount) self-information (0 for FLAT). */
+    private record BlueTerms(double childEntropy, double extraLogPc) {
+    }
+
+    /** Enumerates the canonical boundaries of {@code c} (orders 3..lastBoundary) into observed
+     * subclades admitting an all-novel resolution -- the same enumeration the reserve uses -- and
+     * accumulates the blue-region entropy terms exactly. Bounded by the per-clade op-budget. */
+    private BlueTerms blueContribution(Clade c, CladeReg reg, double eps,
+                                       Map<Clade, Double> freeMemo, Map<Clade, Double> redMemo) {
+        List<Clade> subs = observedSubclades(c);
+        BitSet cBits = c.getCladeInBits();
+        double[] acc = new double[2]; // [0] childEntropy, [1] extraLogPc (SHARED)
+        enumOps = 0;
+        try {
+            for (int m = 3; m <= reg.lastBoundary(); m++) {
+                blueWalk(cBits, subs, m, 0, BitSet.newBitSet(leafArraySize), new ArrayList<>(m),
+                        eps, acc, freeMemo, redMemo);
+            }
+        } catch (BudgetExceeded e) {
+            // deeper boundaries omitted (negligible, like the reserve tail); same guard as countNj
+        }
+        return new BlueTerms(acc[0], acc[1]);
+    }
+
+    private void blueWalk(BitSet cBits, List<Clade> subs, int m, int startIdx, BitSet used,
+                          List<BitSet> chosen, double eps, double[] acc,
+                          Map<Clade, Double> freeMemo, Map<Clade, Double> redMemo) {
+        if (++enumOps > OPS_BUDGET) {
+            throw BUDGET_EXCEEDED;
+        }
+        if (chosen.size() == m - 1) {
+            BitSet last = (BitSet) cBits.clone();
+            last.andNot(used);
+            if (last.cardinality() == 0 || getClade(last) == null) {
+                return;
+            }
+            if (compareBitSets(chosen.get(chosen.size() - 1), last) >= 0) {
+                return;
+            }
+            BitSet[] parts = new BitSet[m];
+            for (int i = 0; i < m - 1; i++) {
+                parts[i] = chosen.get(i);
+            }
+            parts[m - 1] = last;
+            int pc = countAllNovelResolutions(cBits, parts);
+            if (pc <= 0) {
+                return;
+            }
+            double epsPow = Math.pow(eps, m - EXP_REDUCTION);
+            double sumChildH = 0.0;
+            for (BitSet pb : parts) {
+                sumChildH += entropyRedForced(getClade(pb), freeMemo, redMemo); // memoised lookup
+            }
+            // mass on this boundary: pathcount * eps^(m-2) [FLAT] or eps^(m-2) [SHARED]
+            double boundaryMass = (novelMode == NovelMode.FLAT) ? pc * epsPow : epsPow;
+            acc[0] += boundaryMass * sumChildH;
+            if (novelMode == NovelMode.SHARED) {
+                acc[1] += epsPow * Math.log(pc);
+            }
+            return;
+        }
+        for (int i = startIdx; i < subs.size(); i++) {
+            BitSet pb = subs.get(i).getCladeInBits();
+            if (pb.intersects(used)) {
+                continue;
+            }
+            chosen.add(pb);
+            BitSet newUsed = (BitSet) used.clone();
+            newUsed.or(pb);
+            blueWalk(cBits, subs, m, i + 1, newUsed, chosen, eps, acc, freeMemo, redMemo);
+            chosen.remove(chosen.size() - 1);
+        }
+    }
+
+    /* ----------------------------------------------------------------------
      * Calibration: total model mass on trees with at least one novel clade
      * ------------------------------------------------------------------- */
 
