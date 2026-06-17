@@ -7,7 +7,6 @@ import ccd.model.CCD1;
 import ccd.model.KRegCCD;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -43,15 +42,11 @@ public class KRegCCDEntropyExperiment {
         int mcSamples = args.length > 4 ? Integer.parseInt(args[4]) : 20_000;
         int folds = args.length > 5 ? Integer.parseInt(args[5]) : KRegCCDParameterOptimiser.DEFAULT_FOLDS;
 
-        List<Tree> trees = LoadOrStoreTrees.loadTrees(treeFile, burnin);
-        if (trees.size() > maxTrees) { // even thinning across the chain
-            List<Tree> thinned = new ArrayList<>(maxTrees);
-            double step = (double) trees.size() / maxTrees;
-            for (int i = 0; i < maxTrees; i++) {
-                thinned.add(trees.get((int) (i * step)));
-            }
-            trees = thinned;
-        }
+        // When a cap is given, parse only the evenly-thinned subsample (skipping the rest in the
+        // reader); otherwise load every post-burnin tree in a single pass.
+        List<Tree> trees = (maxTrees == Integer.MAX_VALUE)
+                ? LoadOrStoreTrees.loadTrees(treeFile, burnin)
+                : LoadOrStoreTrees.loadTrees(treeFile, burnin, maxTrees);
         int n = trees.size();
         int nTaxa = trees.get(0).getLeafNodeCount();
         System.out.printf("%n=== %s ===%n", treeFile.getName());
