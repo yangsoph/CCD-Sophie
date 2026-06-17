@@ -69,7 +69,10 @@ like `1/sqrt(m)`, so it stays meaningful. (Noise floor at B=20: ~0.20 at m=300, 
   means the held-out split is clean (no shared autocorrelation across the split).
 - Sample sizes (even-thinned subsamples): n = 300, 1000, 3000, for both training and testing.
 - Models: KRegCCD (`withOptimisedParameters`), CCD1, CCD0.
-- 99 replicates pooled (rep100 lacks `run1`/`run2` files).
+- 99 replicates pooled in this run. rep100 was skipped because its run trees are *misnamed*
+  `yule-n50-0.trees` (a 100→0 collision in the data pipeline), not missing — the files are complete
+  (35,001 trees, 50 taxa). `KRegPITSweep` now globs the single `<prefix>*.trees` per run dir instead
+  of reconstructing the name, so the planned re-run will include all 100.
 
 ### Results
 

@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -23,9 +24,11 @@ import java.util.Random;
  * check than any single replicate (the worst single-replicate noise is at the smallest sample
  * size). The chi-square and KS tests are run on the pooled values.</p>
  *
- * <p>Expects the figshare Yule-style layout:
- * {@code <dataRoot>/rep<r>/run1/<prefix>-<r>.trees} for training and {@code .../run2/...} for
- * testing. The single combined tidy TSV it writes feeds straight into {@code doc/plot_pit.py}.</p>
+ * <p>Expects the figshare Yule-style layout: {@code <dataRoot>/rep<r>/run1} (training) and
+ * {@code .../run2} (testing), each containing one {@code <prefix>*.trees} posterior file. The trees
+ * file is found by globbing, not by reconstructing {@code <prefix>-<r>.trees}, so a mislabelled rep
+ * number does not silently drop the replicate (e.g. rep100's run trees are named {@code yule-n50-0.trees}).
+ * The single combined tidy TSV it writes feeds straight into {@code doc/plot_pit.py}.</p>
  *
  * <p>Usage: {@code KRegPITSweep <dataRoot> [prefix=yule-n50] [startRep=1] [endRep=10]
  * [sizes=300,1000,3000] [models=kreg,ccd1,ccd0] [numBins=20] [numSamples=100000] [seed=42]
@@ -69,11 +72,13 @@ public class KRegPITSweep {
                     int zeroedPool = 0;
 
                     for (int rep = startRep; rep <= endRep; rep++) {
-                        File train = new File(dataRoot + "/rep" + rep + "/run1/" + prefix + "-" + rep + ".trees");
-                        File test = new File(dataRoot + "/rep" + rep + "/run2/" + prefix + "-" + rep + ".trees");
-                        if (!train.exists() || !test.exists()) {
-                            System.err.printf(Locale.US, "skip rep %d: missing %s%n", rep,
-                                    train.exists() ? test : train);
+                        File trainDir = new File(dataRoot + "/rep" + rep + "/run1");
+                        File testDir = new File(dataRoot + "/rep" + rep + "/run2");
+                        File train = findTreesFile(trainDir, prefix);
+                        File test = findTreesFile(testDir, prefix);
+                        if (train == null || test == null) {
+                            System.err.printf(Locale.US, "skip rep %d: no %s*.trees in %s%n", rep, prefix,
+                                    train == null ? trainDir : testDir);
                             continue;
                         }
 
@@ -111,6 +116,23 @@ public class KRegPITSweep {
         }
         System.out.printf(Locale.US, "wrote %s and %s  (%.0fs total)%n",
                 out, paramsOut, (System.currentTimeMillis() - t0) / 1000.0);
+    }
+
+    /**
+     * Finds the single {@code <prefix>*.trees} posterior file in a run directory. We glob rather than
+     * reconstruct {@code <prefix>-<rep>.trees} because the data pipeline mislabels some reps (e.g.
+     * rep100's run trees are named yule-n50-0.trees, not yule-n50-100.trees); each run dir holds
+     * exactly one matching trees file. Returns null if the directory has none.
+     */
+    private static File findTreesFile(File runDir, String prefix) {
+        File[] hits = runDir.listFiles((dir, name) -> name.startsWith(prefix) && name.endsWith(".trees"));
+        if (hits == null || hits.length == 0) return null;
+        if (hits.length > 1) {
+            Arrays.sort(hits); // deterministic pick, but flag the ambiguity
+            System.err.printf(Locale.US, "warning: %d %s*.trees files in %s; using %s%n",
+                    hits.length, prefix, runDir, hits[0].getName());
+        }
+        return hits[0];
     }
 
     private static int[] parseInts(String csv) {
