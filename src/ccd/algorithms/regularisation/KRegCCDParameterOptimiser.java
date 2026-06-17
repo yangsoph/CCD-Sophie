@@ -78,7 +78,11 @@ public class KRegCCDParameterOptimiser {
     }
 
     public static Params optimise(List<Tree> trees, int folds) {
-        return optimise(trees, folds, FoldAssignment.STRIDED);
+        // CONTIGUOUS (block) folds, not STRIDED: posterior trees are autocorrelated, so strided folds
+        // leave each held-out tree's near-neighbours in its own training fold, making the CV optimistic
+        // and selecting under-regularised (too-small alpha/mu) parameters. A contiguous held-out block
+        // is far less correlated with its training set, giving an honest held-out objective.
+        return optimise(trees, folds, FoldAssignment.CONTIGUOUS);
     }
 
     public static Params optimise(List<Tree> trees, int folds, FoldAssignment assignment) {

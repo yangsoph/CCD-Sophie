@@ -136,9 +136,11 @@ point extra correlated trees add little information). Consequences:
 - Measure topological ESS of the chains (e.g. clade-trace / pseudo-ESS) and re-plot fitted parameters
   against ESS instead of nominal n.
 - Thin training trees by the autocorrelation time so that nominal n ≈ ESS before fitting.
-- Switch the CV fold assignment from `STRIDED` to **`CONTIGUOUS`** (block folds), so each held-out
-  block is much less correlated with its training set — already supported by the optimiser
-  (`FoldAssignment.CONTIGUOUS`).
+- **Done:** switched the CV default from `STRIDED` to **`CONTIGUOUS`** (block folds) in
+  `KRegCCDParameterOptimiser` — a contiguous held-out block is far less correlated with its training
+  set, so the objective is honest for autocorrelated samples. Correct on principle, but a 1-rep check
+  (below) shows it barely moves the fitted `mu`, so it is a correctness fix, not the cure for the
+  floor-pinning. (Affects all `withOptimisedParameters` callers, incl. the credible-set experiment.)
 - Sanity check: select `(alpha, mu)` on the independent `run2` chain rather than internal CV, and see
   how much the parameters move.
 
@@ -155,14 +157,18 @@ artefact of the floor or of overfitting.
 - Add a **floor warning** symmetric to the existing ceiling warning (line ~130): warn when the
   selected `mu` sits on `MU_LO`, since that is also a capped (non-interior) estimate.
 
-**Arm B — ESS-aware fitting (interacts with A).** Re-run additionally with `FoldAssignment.CONTIGUOUS`
-(and/or autocorrelation-thinned training) to see whether honest CV pulls `mu` back *up*. If
-overfitting (§3) is the real cause, lowering the floor alone will chase a too-small `mu`; contiguous
-folds should counteract that. Worth running both arms and comparing.
+**Arm B — ESS-aware fitting (DONE: CONTIGUOUS is now the default).** The worry was that strided CV
+overfits and pins `mu` artificially low. A 1-rep check (STRIDED vs CONTIGUOUS) shows otherwise: fitted
+`mu` is essentially unchanged — n=300/1000/3000 `mu` = 0.01046/0.00357/0.00122 (STRIDED) →
+0.01046/0.00323/0.00110 (CONTIGUOUS), i.e. slightly *lower*, not higher; `alpha` shifts modestly and
+not in a clean direction. So **the floor-pinning is a genuine preference for small `mu` at large n,
+not a strided artifact** — Arm A is still required. (Autocorrelation thinning to ESS remains a
+possible refinement, but the param effect looks small.)
 
-**Then:** re-run the 99-rep sweep (~8 h, seeded → reproducible) and re-render `pit-yule50*.pdf`.
-Compare L1 (especially n=3000 KRegCCD) and the `(alpha, mu)` scatter (floor pinning should disappear
-under Arm A; medians may shift up under Arm B).
+**Then:** re-run the sweep with both changes (CONTIGUOUS default + lowered floor), now over all 100
+reps (~8 h, seeded → reproducible), and re-render `pit-yule50*.pdf`. Expect the floor-pinning to
+resolve under Arm A (interior `mu` at large n); whether the n=3000 KRegCCD L1 then improves is the
+open question.
 
 Reproduce command (current code; `build/` is stale, so compile against source):
 ```
