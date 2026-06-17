@@ -66,10 +66,16 @@ public class KRegCCDParameterOptimiser {
      * KRegCCD.MU_RELIABLE_MAX, not larger: above it the depth-k reserve approximation breaks down
      * (the omitted tail grows ~mu^3), and because the held-out objective is scored with tail = 0
      * (NONE) that breakdown inflates the score ~mu^3 -- which would bias the search toward large
-     * mu. Searching beyond the ceiling is therefore both invalid and misleading. */
+     * mu. Searching beyond the ceiling is therefore both invalid and misleading.
+     *
+     * The lower bound is 1e-4 (was 1e-3): on large posterior samples the held-out optimum routinely
+     * sat on the old 1e-3 floor (once most clades are seen the data wants very little escape mass),
+     * so the floor was binding rather than interior. MU_GRID is widened from 41 to 61 to keep the
+     * per-decade grid density roughly constant over the now-wider range. A floor warning (below)
+     * flags fits that still pin at the lowered floor. */
     private static final double MU_LO = 1e-4;
     private static final double MU_HI = KRegCCD.MU_RELIABLE_MAX;
-    private static final int MU_GRID = 41;
+    private static final int MU_GRID = 61;
 
     private static final int MAX_ALPHA_EVALS = 60;
 
@@ -136,6 +142,11 @@ public class KRegCCDParameterOptimiser {
                     + "reliability ceiling mu = " + MU_HI + " (KRegCCD.MU_RELIABLE_MAX); the data "
                     + "wants more escape mass than the depth-k approximation can validly provide. "
                     + "Treat mu = " + MU_HI + " as a capped estimate, not an interior optimum.");
+        }
+        if (best[0] <= MU_LO * (1 + 1e-9)) {
+            System.err.println("WARNING: held-out probability is still increasing as mu decreases at "
+                    + "the search floor mu = " + MU_LO + "; the data wants even less escape mass than "
+                    + "this. Treat mu = " + MU_LO + " as a capped (non-interior) estimate.");
         }
         return new Params(alphaStar, best[0], best[1]);
     }

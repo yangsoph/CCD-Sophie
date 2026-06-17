@@ -151,11 +151,11 @@ point extra correlated trees add little information). Consequences:
 Goal: get unconstrained large-n fits and test whether the residual KRegCCD miscalibration is an
 artefact of the floor or of overfitting.
 
-**Arm A — lower the search floor.** In `src/ccd/algorithms/regularisation/KRegCCDParameterOptimiser.java`:
-- `MU_LO`: `1e-3` → `1e-4` (line ~70).
-- `MU_GRID`: bump `41` → ~`61` to keep the per-decade grid density over the wider range [1e-4, 0.05].
-- Add a **floor warning** symmetric to the existing ceiling warning (line ~130): warn when the
-  selected `mu` sits on `MU_LO`, since that is also a capped (non-interior) estimate.
+**Arm A — lower the search floor (DONE).** In `KRegCCDParameterOptimiser`: `MU_LO` `1e-3` → `1e-4`,
+`MU_GRID` `41` → `61` (keep per-decade density over the wider range), and a floor warning mirroring
+the existing ceiling warning. Verified: a 2-rep n=3000 check now finds interior optima below the old
+floor (rep2 `mu = 0.00031`, impossible under the 1e-3 grid) with no floor warning firing — the lowered
+floor is reachable and not itself binding here.
 
 **Arm B — ESS-aware fitting (DONE: CONTIGUOUS is now the default).** The worry was that strided CV
 overfits and pins `mu` artificially low. A 1-rep check (STRIDED vs CONTIGUOUS) shows otherwise: fitted
