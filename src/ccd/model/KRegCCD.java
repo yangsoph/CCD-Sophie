@@ -364,6 +364,30 @@ public class KRegCCD extends RegCCD {
     }
 
     /**
+     * Probability of the given tree under the full-support model, {@code exp(getLogProbabilityOfTree)}.
+     *
+     * <p>Overrides {@link AbstractCCD#getProbabilityOfTree}, whose red-only CCP product is wrong here:
+     * it returns 0 for any tree containing a novel clade (this model gives every tree nonzero mass) and
+     * omits the per-clade {@code (1 - mu)} escape discount even for fully observed trees. Note this can
+     * underflow to 0 for large trees; use {@link #getLogProbabilityOfTree(Tree)} when that matters.
+     */
+    @Override
+    public double getProbabilityOfTree(Tree tree) {
+        return Math.exp(getLogProbabilityOfTree(tree));
+    }
+
+    /**
+     * Always {@code true}: KRegCCD is full support, so every tree on this taxon set has nonzero
+     * probability. Overrides the inherited {@code getProbabilityOfTree(tree) > 0} test, which would
+     * both inherit the red-only bug above and report a false negative when a large tree's probability
+     * underflows to 0.
+     */
+    @Override
+    public boolean containsTree(Tree tree) {
+        return true;
+    }
+
+    /**
      * Number of internal clades of {@code tree} that are not present in this CCD's observed clade
      * set (the novel-clade count = the total {@code m-2} over the tree's blue regions). This is the
      * exponent that the per-region {@code eps} factors are raised to, and is mode-independent (it
@@ -383,6 +407,88 @@ public class KRegCCD extends RegCCD {
             }
         }
         return count;
+    }
+
+    /* ----------------------------------------------------------------------
+     * MAP tree (discounted DP)
+     *
+     * The inherited max-probability DP (AbstractCCD/Clade.getMaxSubtreeLogCCP) maximises only the
+     * sum of observed log-CCPs -- the red-only backbone. It is wrong for a full-support model in two
+     * ways: (1) it OMITS the per-clade red discount log(1 - mu - tail(C)) that scoreFresh charges at
+     * every reservable clade, so its returned max probability is inflated; and (2) because that
+     * discount is incurred once per reservable internal clade and reservability differs between
+     * topologies, the discount can change which resolution is optimal -- so the max-CCP topology need
+     * not be the full-support MAP. We replace it with a discounted DP over the same observed-clade DAG:
+     *
+     *   D(c)  = disc(c) + max_p [ logCCP(c -> L,R) + D(L) + D(R) ],   D(leaf) = 0
+     *   disc(c) = reservable(c) ? log(1 - mu - tail(c)) : 0
+     *
+     * which is exactly scoreFresh's score of an all-red tree, maximised. Escapes are never taken: a
+     * blue region contributes eps^(m-2)/pathcount (with eps << mu), strictly less than the red
+     * alternative's (1 - mu) * ccp at the operating mu (<= MU_RELIABLE_MAX), so the global MAP is the
+     * best all-red tree this DP finds. getMAPTree follows the same argmax partitions (via the MAP
+     * branch of getPartitionBasedOnStrategy), so getMaxLogTreeProbability() ==
+     * getLogProbabilityOfTree(getMAPTree()) by construction.
+     * ------------------------------------------------------------------- */
+
+    private Map<Clade, Double> mapLogProbMemo;
+    private Map<Clade, CladePartition> mapPartitionMemo;
+
+    /** Computes the discounted MAP DP over all clades (children before parents) and caches, per
+     * clade, the best all-red subtree log-probability and the argmax partition. Idempotent. */
+    private void computeDiscountedMap() {
+        if (mapLogProbMemo != null) {
+            return;
+        }
+        Map<Clade, Double> logProb = new HashMap<>();
+        Map<Clade, CladePartition> argmax = new HashMap<>();
+        List<Clade> clades = new ArrayList<>(getClades());
+        clades.sort((a, b) -> Integer.compare(a.size(), b.size()));
+        for (Clade c : clades) {
+            if (c.isLeaf()) {
+                logProb.put(c, 0.0);
+                continue;
+            }
+            double best = Double.NEGATIVE_INFINITY;
+            CladePartition bestPartition = null;
+            for (CladePartition p : c.getPartitions()) {
+                Clade[] ch = p.getChildClades();
+                double v = p.getLogCCP() + logProb.get(ch[0]) + logProb.get(ch[1]);
+                if (v > best) { // first-wins on ties: getPartitions() order is deterministic
+                    best = v;
+                    bestPartition = p;
+                }
+            }
+            CladeReg reg = computeReg(c);
+            double disc = reg.reservable() ? Math.log(1.0 - mu - reg.tail()) : 0.0;
+            logProb.put(c, disc + best);
+            argmax.put(c, bestPartition);
+        }
+        mapLogProbMemo = logProb;
+        mapPartitionMemo = argmax;
+    }
+
+    /**
+     * Log-probability of the most likely tree under the full-support model: the discounted DP value
+     * at the root (see the section comment above). Overrides the inherited red-only maximum, which
+     * omits the per-clade {@code (1 - mu - tail)} escape discount and so overstates the maximum.
+     */
+    @Override
+    public double getMaxLogTreeProbability() {
+        computeDiscountedMap();
+        return mapLogProbMemo.get(getRootClade());
+    }
+
+    /** Routes the MAP partition selection through the discounted DP so {@link #getMAPTree()} returns
+     * the full-support MAP tree (whose log-probability is {@link #getMaxLogTreeProbability()}), not
+     * the red-only max-CCP tree. Other strategies keep the inherited behaviour. */
+    @Override
+    protected CladePartition getPartitionBasedOnStrategy(Clade clade, SamplingStrategy samplingStrategy) {
+        if (samplingStrategy == SamplingStrategy.MAP) {
+            computeDiscountedMap();
+            return mapPartitionMemo.get(clade);
+        }
+        return super.getPartitionBasedOnStrategy(clade, samplingStrategy);
     }
 
     /* ----------------------------------------------------------------------
