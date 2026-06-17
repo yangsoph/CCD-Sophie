@@ -85,6 +85,9 @@ public class KRegCCD extends RegCCD {
     /** Per-clade escape probability (reserved mass for unseen resolutions). */
     private final double mu;
 
+    /** Additive-smoothing pseudocount for the split-expanded backbone (the fitted alpha). */
+    private final double alpha;
+
     private final double log1mMu;
 
     /**
@@ -262,6 +265,7 @@ public class KRegCCD extends RegCCD {
         super(trees, burnin, false); // plain CCD1; split expansion + smoothing applied below
         validateParams(mu, k, alpha);
         this.mu = mu;
+        this.alpha = alpha;
         this.log1mMu = Math.log(1.0 - mu);
         this.reserveBoundary = k + 2; // boundary size = novel clades + 2
         this.tailMode = tailMode;
@@ -294,6 +298,7 @@ public class KRegCCD extends RegCCD {
         super(treeSet, false); // plain CCD1 from the tree set; expansion + smoothing applied below
         validateParams(mu, k, alpha);
         this.mu = mu;
+        this.alpha = alpha;
         this.log1mMu = Math.log(1.0 - mu);
         this.reserveBoundary = k + 2;
         this.tailMode = tailMode;
@@ -329,6 +334,16 @@ public class KRegCCD extends RegCCD {
         System.out.println("Optimised mu = " + r.mu() + ", held-out logP = " + r.heldOutLogProb());
 
         return new KRegCCD(trees, 0.0, r.mu(), DEFAULT_ALPHA, DEFAULT_RESERVE_DEPTH, TailMode.BOUND);
+    }
+
+    /** The additive-smoothing pseudocount alpha this model was built/fitted with. */
+    public double getAlpha() {
+        return alpha;
+    }
+
+    /** The per-clade escape probability mu this model was built/fitted with. */
+    public double getMu() {
+        return mu;
     }
 
     private static void validateParams(double mu, int k, double alpha) {
