@@ -4,6 +4,7 @@ import beast.base.evolution.tree.Node;
 import beast.base.evolution.tree.Tree;
 import beastfx.app.treeannotator.TreeAnnotator;
 import ccd.algorithms.regularisation.KRegCCDParameterOptimiser;
+import ccd.algorithms.regularisation.NNIHeldOutComparison;
 import ccd.model.bitsets.BitSet;
 
 import java.util.ArrayList;
@@ -53,10 +54,12 @@ import java.util.Map;
  */
 public class KRegCCD extends RegCCD {
 
-    /** Per-clade enumeration-op budget: a region-top clade's k is capped at the
+    /**
+     * Per-clade enumeration-op budget: a region-top clade's k is capped at the
      * largest boundary whose N_j enumeration stays within this many steps. Based
      * on actual work, so the disjointness pruning keeps most large clades uncapped;
-     * only genuine combinatorial blow-ups are capped. Tunable, default 1e9. */
+     * only genuine combinatorial blow-ups are capped. Tunable, default 1e9.
+     */
     private static final long OPS_BUDGET =
             Long.parseLong(System.getProperty("kreg.enumOps", "1000000000"));
 
@@ -72,9 +75,11 @@ public class KRegCCD extends RegCCD {
     /** Enumeration steps spent on the current clade's N_j computation. */
     private long enumOps;
 
-    /** Penalty exponent reduction: a boundary-{@code m} region (with {@code m-2}
+    /**
+     * Penalty exponent reduction: a boundary-{@code m} region (with {@code m-2}
      * novel clades) is priced {@code eps^(m - EXP_REDUCTION)} = {@code eps^(#novel
-     * clades)}, i.e. one factor of {@code eps} per novel clade. */
+     * clades)}, i.e. one factor of {@code eps} per novel clade.
+     */
     private static final int EXP_REDUCTION = 2;
 
     /** Per-clade escape probability (reserved mass for unseen resolutions). */
@@ -82,9 +87,11 @@ public class KRegCCD extends RegCCD {
 
     private final double log1mMu;
 
-    /** Reserve depth: include novel-clade orders 1..k (boundaries 3..k+2) when
+    /**
+     * Reserve depth: include novel-clade orders 1..k (boundaries 3..k+2) when
      * solving eps. Scoring is NOT truncated at this depth — every region is scored
-     * (full support), so coverage is independent of k. */
+     * (full support), so coverage is independent of k.
+     */
     private final int reserveBoundary; // = k + 2
 
     /**
@@ -175,11 +182,14 @@ public class KRegCCD extends RegCCD {
     /** Reservoir state for {@link #sampleBoundary}: the boundary currently selected. */
     private BitSet[] boundaryPick;
 
-    /** Strictly-positive fallback increment for novel-node heights when the region top is not
-     * strictly above a boundary part (e.g. common-ancestor-height non-monotonicity). */
+    /**
+     * Strictly-positive fallback increment for novel-node heights when the region top is not
+     * strictly above a boundary part (e.g. common-ancestor-height non-monotonicity).
+     */
     private static final double NOVEL_HEIGHT_EPS = 1e-8;
 
-    /** Per-clade reserve info: whether C reserves mu, log eps(C) (NEGATIVE_INFINITY
+    /**
+     * Per-clade reserve info: whether C reserves mu, log eps(C) (NEGATIVE_INFINITY
      * if nothing computable), and the tail correction to subtract from (1 - mu).
      *
      * <p>{@code nCounts} caches the per-boundary partition counts used to solve eps:
@@ -187,18 +197,23 @@ public class KRegCCD extends RegCCD {
      * all-novel resolution), for boundaries {@code 3..lastBoundary}. The sampler reuses these
      * to draw a region's novelty order j with probability proportional to N_j eps^j, exactly
      * matching the score (the same counts that pinned eps). {@code null}/{@code 0} when C is
-     * not reservable. */
+     * not reservable.
+     */
     private record CladeReg(boolean reservable, double logEps, double tail,
                             int[] nCounts, int lastBoundary) {
     }
 
     private final Map<Clade, CladeReg> regCache = new HashMap<>();
 
-    /** Default per-clade escape probability used when a tool builds a KRegCCD without
-     * specifying one (e.g. via {@link CCDType#KRegCCD}); the RSV2 operating point. */
+    /**
+     * Default per-clade escape probability used when a tool builds a KRegCCD without
+     * specifying one (e.g. via {@link CCDType#KRegCCD}); the RSV2 operating point.
+     */
     public static final double DEFAULT_MU = 0.01;
-    /** Default additive-smoothing pseudocount for the split-expanded backbone (shared with
-     * {@link RegCCD}'s default). */
+    /**
+     * Default additive-smoothing pseudocount for the split-expanded backbone (shared with
+     * {@link RegCCD}'s default).
+     */
     public static final double DEFAULT_ALPHA = 0.4;
     /** Default reserve depth k. */
     public static final int DEFAULT_RESERVE_DEPTH = 2;
@@ -297,13 +312,23 @@ public class KRegCCD extends RegCCD {
      * @param folds number of cross-validation folds
      */
     public static KRegCCD withOptimisedParameters(List<Tree> trees, int folds) {
-        KRegCCDParameterOptimiser.Params p = KRegCCDParameterOptimiser.optimise(trees, folds);
+        KRegCCDParameterOptimiser.Params p = KRegCCDParameterOptimiser.optimise(trees, folds, NNIHeldOutComparison.FoldAssignment.CONTIGUOUS);
         return new KRegCCD(trees, 0.0, p.mu(), p.alpha(), DEFAULT_RESERVE_DEPTH, TailMode.BOUND);
     }
 
     /** As {@link #withOptimisedParameters(List, int)} with {@link KRegCCDParameterOptimiser#DEFAULT_FOLDS} folds. */
     public static KRegCCD withOptimisedParameters(List<Tree> trees) {
         return withOptimisedParameters(trees, KRegCCDParameterOptimiser.DEFAULT_FOLDS);
+    }
+
+    public static KRegCCD withOptimisedMu(List<Tree> trees) {
+        KRegCCDParameterOptimiser.MuResult r =
+                KRegCCDParameterOptimiser.optimiseMu(trees, KRegCCDParameterOptimiser.DEFAULT_FOLDS,
+                        NNIHeldOutComparison.FoldAssignment.CONTIGUOUS, DEFAULT_ALPHA);
+
+        System.out.println("Optimised mu = " + r.mu() + ", held-out logP = " + r.heldOutLogProb());
+
+        return new KRegCCD(trees, 0.0, r.mu(), DEFAULT_ALPHA, DEFAULT_RESERVE_DEPTH, TailMode.BOUND);
     }
 
     private static void validateParams(double mu, int k, double alpha) {
@@ -434,8 +459,10 @@ public class KRegCCD extends RegCCD {
     private Map<Clade, Double> mapLogProbMemo;
     private Map<Clade, CladePartition> mapPartitionMemo;
 
-    /** Computes the discounted MAP DP over all clades (children before parents) and caches, per
-     * clade, the best all-red subtree log-probability and the argmax partition. Idempotent. */
+    /**
+     * Computes the discounted MAP DP over all clades (children before parents) and caches, per
+     * clade, the best all-red subtree log-probability and the argmax partition. Idempotent.
+     */
     private void computeDiscountedMap() {
         if (mapLogProbMemo != null) {
             return;
@@ -479,9 +506,11 @@ public class KRegCCD extends RegCCD {
         return mapLogProbMemo.get(getRootClade());
     }
 
-    /** Routes the MAP partition selection through the discounted DP so {@link #getMAPTree()} returns
+    /**
+     * Routes the MAP partition selection through the discounted DP so {@link #getMAPTree()} returns
      * the full-support MAP tree (whose log-probability is {@link #getMaxLogTreeProbability()}), not
-     * the red-only max-CCP tree. Other strategies keep the inherited behaviour. */
+     * the red-only max-CCP tree. Other strategies keep the inherited behaviour.
+     */
     @Override
     protected CladePartition getPartitionBasedOnStrategy(Clade clade, SamplingStrategy samplingStrategy) {
         if (samplingStrategy == SamplingStrategy.MAP) {
@@ -520,8 +549,10 @@ public class KRegCCD extends RegCCD {
      * normalises exactly, they agree with the brute-force entropy.
      * ------------------------------------------------------------------- */
 
-    /** Number of sampled trees used by {@link #getEntropy()} (the default Monte-Carlo path is
-     * not used; the recursion is). Kept for the convenience overload. */
+    /**
+     * Number of sampled trees used by {@link #getEntropy()} (the default Monte-Carlo path is
+     * not used; the recursion is). Kept for the convenience overload.
+     */
     public static final int DEFAULT_ENTROPY_SAMPLES = 100_000;
 
     /**
@@ -628,7 +659,7 @@ public class KRegCCD extends RegCCD {
      * already memoised when a clade is reached (the enumeration then does no nested re-entry).
      *
      * @return the entropy (in nats) of the self-consistent (tail = 0, escape mass {@code mu})
-     *         KRegCCD distribution
+     * KRegCCD distribution
      */
     public double getEntropyRecursive() {
         Map<Clade, Double> freeMemo = new HashMap<>();
@@ -642,8 +673,10 @@ public class KRegCCD extends RegCCD {
         return freeMemo.getOrDefault(getRootClade(), 0.0);
     }
 
-    /** Entropy of the subtree generated at {@code c} when {@code c} may escape (the root, or a red
-     * child of another node). Assumes all strictly-smaller clades are already memoised. */
+    /**
+     * Entropy of the subtree generated at {@code c} when {@code c} may escape (the root, or a red
+     * child of another node). Assumes all strictly-smaller clades are already memoised.
+     */
     private double entropyFree(Clade c, Map<Clade, Double> freeMemo, Map<Clade, Double> redMemo) {
         if (c.isLeaf()) {
             return 0.0;
@@ -683,9 +716,11 @@ public class KRegCCD extends RegCCD {
         return h;
     }
 
-    /** Entropy of the subtree generated at {@code c} when {@code c} is forced to take an observed
+    /**
+     * Entropy of the subtree generated at {@code c} when {@code c} is forced to take an observed
      * (red) split -- i.e. as a blue region's boundary part: split ~ CCP, children free. Assumes all
-     * strictly-smaller clades are already memoised. */
+     * strictly-smaller clades are already memoised.
+     */
     private double entropyRedForced(Clade c, Map<Clade, Double> freeMemo, Map<Clade, Double> redMemo) {
         if (c.isLeaf()) {
             return 0.0;
@@ -705,15 +740,19 @@ public class KRegCCD extends RegCCD {
         return h;
     }
 
-    /** The two enumeration-derived parts of a clade's blue (escape) entropy contribution:
+    /**
+     * The two enumeration-derived parts of a clade's blue (escape) entropy contribution:
      * {@code childEntropy} = sum over regions of P(region) * sum_i H_red(boundary part i), and
-     * {@code extraLogPc} = the SHARED-only per-region +log(pathcount) self-information (0 for FLAT). */
+     * {@code extraLogPc} = the SHARED-only per-region +log(pathcount) self-information (0 for FLAT).
+     */
     private record BlueTerms(double childEntropy, double extraLogPc) {
     }
 
-    /** Enumerates the canonical boundaries of {@code c} (orders 3..lastBoundary) into observed
+    /**
+     * Enumerates the canonical boundaries of {@code c} (orders 3..lastBoundary) into observed
      * subclades admitting an all-novel resolution -- the same enumeration the reserve uses -- and
-     * accumulates the blue-region entropy terms exactly. Bounded by the per-clade op-budget. */
+     * accumulates the blue-region entropy terms exactly. Bounded by the per-clade op-budget.
+     */
     private BlueTerms blueContribution(Clade c, CladeReg reg, double eps,
                                        Map<Clade, Double> freeMemo, Map<Clade, Double> redMemo) {
         List<Clade> subs = observedSubclades(c);
@@ -818,9 +857,11 @@ public class KRegCCD extends RegCCD {
         return m;
     }
 
-    /** Cheap reservability test (early-exit over the reserve-depth orders), used
+    /**
+     * Cheap reservability test (early-exit over the reserve-depth orders), used
      * for the aggregate {@link #getNovelCladeProbability} where the exact tail is
-     * not needed. */
+     * not needed.
+     */
     private boolean cheapReservable(Clade c) {
         if (c.size() < 3) {
             return false;
@@ -920,8 +961,10 @@ public class KRegCCD extends RegCCD {
         }
     }
 
-    /** Re-solves {@code log eps(C)} from the cached ({@code mu}-independent) {@code N_j} counts at
-     * an arbitrary {@code scoreMu}; {@code NEGATIVE_INFINITY} if {@code C} reserves nothing. */
+    /**
+     * Re-solves {@code log eps(C)} from the cached ({@code mu}-independent) {@code N_j} counts at
+     * an arbitrary {@code scoreMu}; {@code NEGATIVE_INFINITY} if {@code C} reserves nothing.
+     */
     private double logEpsAtMu(Clade c, double scoreMu) {
         CladeReg reg = computeReg(c);
         if (!reg.reservable()) {
@@ -961,8 +1004,10 @@ public class KRegCCD extends RegCCD {
      * (log-)probability equals getLogProbabilityOfTree of that tree.
      * ------------------------------------------------------------------- */
 
-    /** Selects how faithfully {@link #sampleTree()} reproduces the full-support score; see
-     * {@link SamplingFidelity}. Default {@link SamplingFidelity#SELF_CONSISTENT}. */
+    /**
+     * Selects how faithfully {@link #sampleTree()} reproduces the full-support score; see
+     * {@link SamplingFidelity}. Default {@link SamplingFidelity#SELF_CONSISTENT}.
+     */
     public void setSamplingFidelity(SamplingFidelity fidelity) {
         this.samplingFidelity = fidelity;
     }
@@ -999,10 +1044,12 @@ public class KRegCCD extends RegCCD {
         return resolveRedRoot(clade, samplingStrategy, heightStrategy);
     }
 
-    /** Resolves {@code clade} with an observed (red) split and recurses into its children
+    /**
+     * Resolves {@code clade} with an observed (red) split and recurses into its children
      * through the overriding sampler (so descendant clades may still escape). Stamps the same
      * {@code (1 - mu - tail) * theta} factor scoreFresh charges at a red node. Leaves delegate
-     * to the inherited leaf construction. */
+     * to the inherited leaf construction.
+     */
     private Node resolveRedRoot(Clade clade, SamplingStrategy samplingStrategy,
                                 HeightSettingStrategy heightStrategy) {
         if (clade.isLeaf()) {
@@ -1025,9 +1072,11 @@ public class KRegCCD extends RegCCD {
         return vertex;
     }
 
-    /** Escape weight per boundary size: {@code w[m] = N_m * eps^(m-2)}. SELF_CONSISTENT uses the
+    /**
+     * Escape weight per boundary size: {@code w[m] = N_m * eps^(m-2)}. SELF_CONSISTENT uses the
      * computed orders (whose sum is mu); FULL_SUPPORT additionally Knuth-estimates the leading
-     * tail orders ({@code k+1, k+2}). */
+     * tail orders ({@code k+1, k+2}).
+     */
     private double[] escapeOrderWeights(Clade c, CladeReg reg, double eps) {
         int maxBoundary = reg.lastBoundary();
         int[] n = reg.nCounts();
@@ -1053,10 +1102,12 @@ public class KRegCCD extends RegCCD {
         return w;
     }
 
-    /** Samples a maximal blue region rooted at observed clade {@code c}: draws a boundary size,
+    /**
+     * Samples a maximal blue region rooted at observed clade {@code c}: draws a boundary size,
      * a uniform valid boundary, a uniform all-novel resolution shape, resolves the boundary parts
      * red, and stamps the region factor {@code eps^(m-2)/pathcount}. Returns {@code null} if the
-     * boundary enumeration exceeds the op-budget (the caller then takes an observed split). */
+     * boundary enumeration exceeds the op-budget (the caller then takes an observed split).
+     */
     private Node sampleBlueRegion(Clade c, CladeReg reg, double[] orderWeight, double escapeMass,
                                   HeightSettingStrategy heightStrategy) {
         double target = random.nextDouble() * escapeMass;
@@ -1117,9 +1168,11 @@ public class KRegCCD extends RegCCD {
         return region;
     }
 
-    /** Uniformly samples one valid boundary of {@code c} into {@code m} observed subclades
+    /**
+     * Uniformly samples one valid boundary of {@code c} into {@code m} observed subclades
      * (admitting an all-novel resolution) by reservoir sampling over the same canonical
-     * enumeration {@link #countNj} counts. Returns the chosen parts, or {@code null} if none. */
+     * enumeration {@link #countNj} counts. Returns the chosen parts, or {@code null} if none.
+     */
     private BitSet[] sampleBoundary(Clade c, List<Clade> subs, int m) {
         boundarySeen = 0;
         boundaryWeightSeen = 0.0;
@@ -1181,13 +1234,17 @@ public class KRegCCD extends RegCCD {
         }
     }
 
-    /** A sampled all-novel resolution of a clade into its boundary parts, with the total number
-     * of such resolutions (the pathcount) that normalises the region. */
+    /**
+     * A sampled all-novel resolution of a clade into its boundary parts, with the total number
+     * of such resolutions (the pathcount) that normalises the region.
+     */
     private record Resolution(Shape shape, int pathcount) {
     }
 
-    /** Node of a sampled resolution shape: a boundary part (leaf, {@code partIndex >= 0}) or a
-     * novel internal split with two children. */
+    /**
+     * Node of a sampled resolution shape: a boundary part (leaf, {@code partIndex >= 0}) or a
+     * novel internal split with two children.
+     */
     private static final class Shape {
         final BitSet union;
         final int partIndex;
@@ -1213,9 +1270,11 @@ public class KRegCCD extends RegCCD {
         }
     }
 
-    /** Uniformly samples one all-novel binary resolution of {@code cBits} into {@code parts} by
+    /**
+     * Uniformly samples one all-novel binary resolution of {@code cBits} into {@code parts} by
      * top-down sampling from the same subset DP {@link #countAllNovelResolutions} builds (at each
-     * mask a split is chosen with probability proportional to {@code f[s1]*f[s2]}). */
+     * mask a split is chosen with probability proportional to {@code f[s1]*f[s2]}).
+     */
     private Resolution sampleResolution(BitSet cBits, BitSet[] parts) {
         int k = parts.length;
         if (k == 1) {
@@ -1286,9 +1345,11 @@ public class KRegCCD extends RegCCD {
         return new Shape((BitSet) unionOf[mask].clone(), left, right);
     }
 
-    /** Materialises a sampled resolution shape into nodes: boundary parts reuse their already
+    /**
+     * Materialises a sampled resolution shape into nodes: boundary parts reuse their already
      * resolved (red) nodes, novel internal nodes get fresh nodes with identity probability factors
-     * (the region factor is applied once at the top by the caller) and interpolated heights. */
+     * (the region factor is applied once at the top by the caller) and interpolated heights.
+     */
     private Node assembleRegion(Shape shape, Node[] boundaryNodes, Clade c, double topHeight,
                                 HeightSettingStrategy heightStrategy) {
         if (shape.isLeaf()) {
@@ -1320,8 +1381,10 @@ public class KRegCCD extends RegCCD {
         return vertex;
     }
 
-    /** Region-top height under the given strategy ({@code NaN} for One/None, which the novel-height
-     * scheme handles without a fixed top). */
+    /**
+     * Region-top height under the given strategy ({@code NaN} for One/None, which the novel-height
+     * scheme handles without a fixed top).
+     */
     private double regionTopHeight(Clade c, HeightSettingStrategy heightStrategy) {
         if (heightStrategy == HeightSettingStrategy.MeanOccurredHeights) {
             return c.getMeanOccurredHeight();
@@ -1332,10 +1395,12 @@ public class KRegCCD extends RegCCD {
         return Double.NaN;
     }
 
-    /** Sets a height for a novel (or region-top) internal node that keeps branch lengths positive:
+    /**
+     * Sets a height for a novel (or region-top) internal node that keeps branch lengths positive:
      * One uses {@code max(child) + 1}; Mean/CommonAncestor put the top at its clade height and each
      * interior node at the midpoint between its children and the top, falling back to
-     * {@code max(child) + eps} if the top is not strictly above the children; None leaves it unset. */
+     * {@code max(child) + eps} if the top is not strictly above the children; None leaves it unset.
+     */
     private void setNovelHeight(Node vertex, Node left, Node right, boolean isTop,
                                 double topHeight, HeightSettingStrategy heightStrategy) {
         if (heightStrategy == null || heightStrategy == HeightSettingStrategy.None) {

@@ -37,7 +37,7 @@ public class KRegCredibleSetExperiment {
         }
 
         // output file
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/credSet_output/credibleSet_" + dataName + "_sub" + subsampleSize + "_" + ccdType + "_" + startRep + ".csv";
+        String outputPathName = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/credSet_fixedAlpha_output/credibleSet_" + dataName + "_sub" + subsampleSize + "_" + ccdType + "_" + startRep + ".csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -77,7 +77,7 @@ public class KRegCredibleSetExperiment {
                 CCD1 ccd1 = new CCD1(trainingTrees, 0);
                 probBasedCredSetComputer = new ProbabilityBasedCredibleSetComputer(ccd1);
             } else {
-                KRegCCD kreg = KRegCCD.withOptimisedParameters(trainingTrees);
+                KRegCCD kreg = KRegCCD.withOptimisedMu(trainingTrees);
                 probBasedCredSetComputer = new ProbabilityBasedCredibleSetComputer(kreg);
             }
             int[] countsPerCredibleLevel = getCountsPerCredibleLevel(probBasedCredSetComputer, testingTrees);

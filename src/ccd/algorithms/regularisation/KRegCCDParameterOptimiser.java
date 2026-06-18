@@ -67,7 +67,7 @@ public class KRegCCDParameterOptimiser {
      * (the omitted tail grows ~mu^3), and because the held-out objective is scored with tail = 0
      * (NONE) that breakdown inflates the score ~mu^3 -- which would bias the search toward large
      * mu. Searching beyond the ceiling is therefore both invalid and misleading. */
-    private static final double MU_LO = 1e-3;
+    private static final double MU_LO = 1e-4;
     private static final double MU_HI = KRegCCD.MU_RELIABLE_MAX;
     private static final int MU_GRID = 41;
 
@@ -134,6 +134,36 @@ public class KRegCCDParameterOptimiser {
                     + "Treat mu = " + MU_HI + " as a capped estimate, not an interior optimum.");
         }
         return new Params(alphaStar, best[0], best[1]);
+    }
+
+    /**
+     * Optimise mu alone, given an alpha value
+     */
+    public static MuResult optimiseMu(List<Tree> trees, int folds, FoldAssignment assignment, double alpha) {
+        int n = trees.size();
+        if (n < 2) throw new IllegalArgumentException("need at least 2 trees to cross-validate, got " + n);
+        int b = Math.max(2, Math.min(folds, n));
+        List<List<Tree>> trainByFold = new ArrayList<>(b);
+        List<List<Tree>> testByFold = new ArrayList<>(b);
+        for (int f = 0; f < b; f++) {
+            List<Tree> train = new ArrayList<>();
+            List<Tree> test = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                boolean isTest = switch (assignment) {
+                    case STRIDED -> (i % b == f);
+                    case CONTIGUOUS -> (i >= (int) ((long) f * n / b)) && (i < (int) ((long) (f + 1) * n / b));
+                };
+                (isTest ? test : train).add(trees.get(i));
+            }
+            trainByFold.add(train);
+            testByFold.add(test);
+        }
+        double[] muGrid = logspace(MU_LO, MU_HI, MU_GRID);
+        double[] best = bestMuLogProb(trainByFold, testByFold, alpha, muGrid);
+        return new MuResult(best[0], best[1]);
+    }
+
+    public record MuResult(double mu, double heldOutLogProb) {
     }
 
     /**
