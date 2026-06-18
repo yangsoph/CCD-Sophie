@@ -5,8 +5,9 @@ distribution) is calibrated against held-out trees, and how it compares to CCD1 
 PIT histogram experiment done so far, an effective-sample-size caveat on the fitted parameters, the
 planned floor-lowering re-run, and the menu of other calibration experiments we have discussed.
 
-Status as of 2026-06-18: PIT histogram experiment complete on Yule50 (99 reps). The other experiments
-are proposed, not yet built.
+Status as of 2026-06-18: PIT histogram experiment complete on Yule50. The planned re-run (CONTIGUOUS
+folds, lowered mu floor, alpha pinned at 0.4, 100 reps) is also done; results in section 4. The other
+experiments are proposed, not yet built.
 
 ---
 
@@ -170,16 +171,49 @@ reps (~8 h, seeded → reproducible), and re-render `pit-yule50*.pdf`. Expect th
 resolve under Arm A (interior `mu` at large n); whether the n=3000 KRegCCD L1 then improves is the
 open question.
 
-Reproduce command (current code; `build/` is stale, so compile against source):
+### Re-run results (2026-06-18, DONE)
+
+Ran the full sweep with all three changes in place: CONTIGUOUS folds, `mu` floor lowered to 1e-4, and
+`alpha` pinned at 0.4. All 100 reps, seed 42. Profiling first showed that tree-file parsing, not model
+fitting, dominated wall time, so the sweep was given a buffered nexus reader, made to load each file
+once per size (shared across the three models), and parallelised across replicates; it then finished
+in about 39 minutes on 8 cores rather than the projected several hours. One consequence: the pooled
+PIT histogram is bit-reproducible only single-threaded, because parallel sampling reorders the Monte
+Carlo draws. That is pure MC noise (the fitted parameters are identical run to run), so the
+calibration verdict is unaffected.
+
+KRegCCD L1, this run (100 reps), against the earlier searched-`alpha` baseline (99 reps):
+
+| n    | KRegCCD L1 (alpha=0.4) | KRegCCD L1 (searched alpha) |
+|------|------------------------|------------------------------|
+| 300  | 0.084                  | 0.102                        |
+| 1000 | 0.052                  | 0.055                        |
+| 3000 | 0.033                  | 0.039                        |
+
+- **The `mu` floor-pinning is resolved.** With the floor at 1e-4, only 1 of 300 fits sits on it (0 at
+  n=300, 0 at n=1000, 1 at n=3000), against 72 of 99 n=3000 fits pinned to the old 1e-3 floor. The
+  per-size median `mu` is 0.0046, 0.0015, 0.00064 for n = 300/1000/3000; the n=3000 median sits below
+  the old 1e-3 floor, confirming that floor was binding. The fitted-parameter figure is now a `mu`
+  violin per sample size (the `alpha` axis carries no information once `alpha` is pinned).
+- **Pinning `alpha` = 0.4 did not cost calibration; it slightly improved KRegCCD L1 at every size.**
+  The held-out objective is shallow in `alpha` and the searched `alpha` clustered near 0.4, so dropping
+  the `alpha` search loses nothing measurable and removes the per-`alpha` backbone rebuild (the cost
+  that made the sweep slow). CCD1 and CCD0 are unaffected by the `alpha` change (CCD1 L1 ~0.02 with
+  8-40% excluded; CCD0 L1 ~0.63-0.67), matching the baseline.
+- The residual n=3000 KRegCCD miscalibration shrank (0.039 to 0.033) but did not vanish, so it is not
+  solely a floor artefact. It stays above the L1 noise floor (~0.007 at m = 3e5).
+
+Reproduce command (parallelised sweep; `build/` is stale, so compile against source):
 ```
 javac -cp "../beast2/build:../BeastFX/build:../asm/build:../beast2/lib/*" -sourcepath src -d /tmp/pitbuild \
   src/ccd/experiments/regularisation/KRegPITSweep.java
-java -Xmx8g -cp "/tmp/pitbuild:../beast2/build:../BeastFX/build:../asm/build:../beast2/lib/*" \
+# trailing 8 = worker threads (one rep per thread); -Xmx scales with thread count
+java -Xmx32g -cp "/tmp/pitbuild:../beast2/build:../BeastFX/build:../asm/build:../beast2/lib/*" \
   ccd.experiments.regularisation.KRegPITSweep \
   ~/Git/cladeDiscoveryCurve/data/Yule50 yule-n50 1 100 300,1000,3000 kreg,ccd1,ccd0 20 100000 42 \
-  pit-yule50.tsv
-python3 doc/plot_pit.py pit-yule50.pdf pit-yule50.tsv --title="PIT calibration — Yule50"
-python3 doc/plot_params.py pit-yule50-params.pdf pit-yule50.params.tsv --title="Fitted KRegCCD parameters — Yule50"
+  doc/pit-yule50-fixedalpha.tsv 8
+python3 doc/plot_pit.py doc/pit-yule50-fixedalpha.pdf doc/pit-yule50-fixedalpha.tsv --title="PIT calibration — Yule50 (alpha=0.4)"
+python3 doc/plot_params.py doc/pit-yule50-fixedalpha-params.pdf doc/pit-yule50-fixedalpha.params.tsv --title="Fitted KRegCCD mu — Yule50 (alpha=0.4)" --mufloor=1e-4
 ```
 
 ---
@@ -222,19 +256,31 @@ Code:
 - `src/ccd/experiments/regularisation/KRegPITExperiment.java` — single (model, test-set) PIT run;
   reusable static helpers (PIT, histogram, uniformity tests, L1).
 - `src/ccd/experiments/regularisation/KRegPITSweep.java` — pools the PIT over reps × sizes × models;
-  writes the PIT histogram TSV and the `(alpha, mu)` params TSV.
+  writes the PIT histogram TSV and the `(alpha, mu)` params TSV. Parallelised across replicates, with
+  each (train, test) file loaded once per size and shared across models, and a per-cell seeded RNG.
 - `src/ccd/model/KRegCCD.java` — added `getAlpha()` / `getMu()` (and an `alpha` field) so the sweep
   can record fitted parameters.
+- `src/ccd/algorithms/regularisation/KRegCCDParameterOptimiser.java` — `FIXED_ALPHA` pins `alpha`
+  (0.4) and skips the Brent search (set to `null` to restore it); CONTIGUOUS folds, `mu` floor 1e-4.
+- Speedups in shared infra: `LoadOrStoreTrees` reads the trees block through a chunked buffer (not
+  per-char `BufferedReader.read()`); `CladePartition`'s static `logTable` made thread-safe for
+  parallel sampling.
 
 Plots (matplotlib, vector output):
 - `doc/plot_pit.py` — PIT histogram grid (L1 headline, 95% band, capped y-axis, off-scale peaks
   labelled).
-- `doc/plot_params.py` — `(alpha, mu)` scatter, log-log, coloured by n, with search floor/ceiling
-  lines and per-size median stars.
+- `doc/plot_params.py` — auto-selects by the data: `(alpha, mu)` log-log scatter when `alpha` varies,
+  or a `mu` violin per sample size with jittered fits when `alpha` is pinned (constant). Search
+  floor/ceiling lines in both.
 
-Outputs (Yule50, 99 reps, seed 42):
-- `doc/pit-yule50.pdf`, `doc/pit-yule50.tsv` — PIT calibration grid + data.
-- `doc/pit-yule50-params.pdf`, `doc/pit-yule50.params.tsv` — fitted-parameter scatter + data.
+Outputs (Yule50, seed 42):
+- searched `alpha`, 99 reps: `doc/pit-yule50.pdf`, `doc/pit-yule50.tsv` (PIT grid + data);
+  `doc/pit-yule50-params.pdf`, `doc/pit-yule50.params.tsv` (fitted-parameter scatter + data).
+- `alpha` = 0.4, 100 reps: `doc/pit-yule50-fixedalpha.pdf`, `doc/pit-yule50-fixedalpha.tsv` (PIT grid +
+  data); `doc/pit-yule50-fixedalpha-params.pdf`, `doc/pit-yule50-fixedalpha.params.tsv` (`mu` violin +
+  data).
 
-Reproducibility: the sweep seeds `Randomizer` (and the PIT jitter RNG), so re-running the same command
-reproduces the results exactly.
+Reproducibility: model sampling uses each CCD's own seeded `Random` (not the global `Randomizer`),
+deterministically seeded per (model, size, rep). Fitted parameters and the single-threaded run
+reproduce bit-for-bit; the parallel PIT histogram varies only at Monte Carlo noise level (see
+section 4).
