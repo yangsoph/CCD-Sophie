@@ -41,7 +41,9 @@ import java.util.List;
  *       derivative-based method that would wander on the flat ridge.</li>
  * </ul>
  * For each candidate {@code alpha}, {@code mu} is profiled out (best over the grid); Brent then
- * maximises that profiled objective over {@code alpha}.
+ * maximises that profiled objective over {@code alpha}. When {@link #FIXED_ALPHA} is set, the Brent
+ * search is skipped and only {@code mu} is profiled at that pinned {@code alpha} — a large speedup
+ * (one set of per-fold backbones instead of one per alpha evaluation).
  *
  * @author Claude (CCD-Sophie)
  */
@@ -61,6 +63,14 @@ public class KRegCCDParameterOptimiser {
     private static final double ALPHA_LO = 1e-3;
     private static final double ALPHA_HI = 2.0;
     private static final double ALPHA_START = KRegCCD.DEFAULT_ALPHA;
+
+    /* Fixed backbone-smoothing alpha. The Yule50 sweep found the fitted alpha clustered tightly
+     * around 0.4 (per-size medians 0.46/0.40/0.36) and the held-out objective is shallow in alpha,
+     * so the Brent search buys little but costs a full backbone rebuild per alpha evaluation (up to
+     * MAX_ALPHA_EVALS x folds rebuilds). Pinning alpha = 0.4 and profiling only mu collapses that to
+     * one set of per-fold backbones -- the dominant speedup for the 100-rep re-run. Set to null to
+     * restore the Brent search over [ALPHA_LO, ALPHA_HI]. */
+    private static final Double FIXED_ALPHA = 0.4;
 
     /* mu grid: log-spaced from negligible escape up to the reliability ceiling. The upper bound is
      * KRegCCD.MU_RELIABLE_MAX, not larger: above it the depth-k reserve approximation breaks down
@@ -117,22 +127,28 @@ public class KRegCCDParameterOptimiser {
 
         double[] muGrid = logspace(MU_LO, MU_HI, MU_GRID);
 
-        UnivariateFunction profiled = alpha -> {
-            double[] best = bestMuLogProb(trainByFold, testByFold, alpha, muGrid);
-            System.out.println(String.format(
-                    "  testing alpha = %.5f -> best mu = %.5f, held-out logP = %.5f",
-                    alpha, best[0], best[1]));
-            return best[1];
-        };
+        double alphaStar;
+        if (FIXED_ALPHA != null) {
+            // alpha pinned (see FIXED_ALPHA): skip the Brent search and profile only mu.
+            alphaStar = FIXED_ALPHA;
+        } else {
+            UnivariateFunction profiled = alpha -> {
+                double[] best = bestMuLogProb(trainByFold, testByFold, alpha, muGrid);
+                System.out.println(String.format(
+                        "  testing alpha = %.5f -> best mu = %.5f, held-out logP = %.5f",
+                        alpha, best[0], best[1]));
+                return best[1];
+            };
 
-        BrentOptimizer optimiser = new BrentOptimizer(1e-4, 1e-4);
-        UnivariatePointValuePair sol = optimiser.optimize(
-                new MaxEval(MAX_ALPHA_EVALS),
-                new UnivariateObjectiveFunction(profiled),
-                GoalType.MAXIMIZE,
-                new SearchInterval(ALPHA_LO, ALPHA_HI, ALPHA_START));
+            BrentOptimizer optimiser = new BrentOptimizer(1e-4, 1e-4);
+            UnivariatePointValuePair sol = optimiser.optimize(
+                    new MaxEval(MAX_ALPHA_EVALS),
+                    new UnivariateObjectiveFunction(profiled),
+                    GoalType.MAXIMIZE,
+                    new SearchInterval(ALPHA_LO, ALPHA_HI, ALPHA_START));
+            alphaStar = sol.getPoint();
+        }
 
-        double alphaStar = sol.getPoint();
         double[] best = bestMuLogProb(trainByFold, testByFold, alphaStar, muGrid);
         System.out.println(String.format(
                 "KRegCCD optimised: alpha = %.5f, mu = %.5f, held-out logP = %.5f",
