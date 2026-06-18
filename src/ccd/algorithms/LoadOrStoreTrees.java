@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
@@ -106,14 +107,17 @@ public class LoadOrStoreTrees {
                     if (lower.matches("^\\s*begin\\s+taxa;\\s*$")) {
                         parseTaxaBlock(fin);
                     } else if (lower.matches("^\\s*begin\\s+trees;\\s*$")) {
-                        return readTrees(fin, wanted, out);
+                        // The header (taxa block, block starts) is tiny; the trees block is the bulk of
+                        // a multi-MB file, so read it through a chunked buffer rather than the per-char
+                        // (synchronized) BufferedReader.read() that otherwise dominates parse time.
+                        return readTrees(new FastCharReader(fin), wanted, out);
                     }
                 }
             }
             return 0;
         }
 
-        private int readTrees(BufferedReader fin, BitSet wanted, List<Tree> out) throws IOException {
+        private int readTrees(FastCharReader fin, BitSet wanted, List<Tree> out) throws IOException {
             int origin = -1;
             List<String> blockTaxa = this.taxa;
 
@@ -179,7 +183,7 @@ public class LoadOrStoreTrees {
          * comments ({@code [...]}) and quoted strings read through verbatim. Returns {@code null} at
          * end of file. Mirrors {@link NexusParser}'s {@code readNextCommand}.
          */
-        private String readCommand(BufferedReader fin) throws IOException {
+        private String readCommand(FastCharReader fin) throws IOException {
             StringBuilder sb = new StringBuilder();
             int nextVal;
             while ((nextVal = fin.read()) >= 0) {
@@ -199,7 +203,7 @@ public class LoadOrStoreTrees {
             return sb.toString().isEmpty() ? null : sb.toString();
         }
 
-        private void readComment(BufferedReader fin, StringBuilder sb) throws IOException {
+        private void readComment(FastCharReader fin, StringBuilder sb) throws IOException {
             int nextVal;
             while ((nextVal = fin.read()) >= 0) {
                 char c = (char) nextVal;
@@ -217,7 +221,7 @@ public class LoadOrStoreTrees {
             throw new IOException("Unterminated comment.");
         }
 
-        private void readString(BufferedReader fin, StringBuilder sb, char delim) throws IOException {
+        private void readString(FastCharReader fin, StringBuilder sb, char delim) throws IOException {
             int nextVal;
             while ((nextVal = fin.read()) >= 0) {
                 char c = (char) nextVal;
@@ -230,6 +234,38 @@ public class LoadOrStoreTrees {
                 }
             }
             throw new IOException("Unterminated string.");
+        }
+
+        /**
+         * Pulls characters from an underlying {@link Reader} through a large in-memory buffer. The
+         * nexus command reader consumes the trees block one character at a time; doing that straight
+         * off a {@link BufferedReader} pays the per-call cost of its {@code synchronized} {@code read()}
+         * (plus bounds work) on every character, which dominated parse time on multi-MB tree files.
+         * Here one {@code read(char[])} refills ~64k characters, so that cost is paid ~once per 64k
+         * characters instead of once per character. Behaviour is otherwise identical: same characters,
+         * same order. Not thread-safe (one instance per parse pass).
+         */
+        private static final class FastCharReader {
+            private final Reader in;
+            private final char[] buf = new char[1 << 16];
+            private int pos = 0;
+            private int len = 0;
+
+            FastCharReader(Reader in) {
+                this.in = in;
+            }
+
+            /** @return the next character, or -1 at end of stream. */
+            int read() throws IOException {
+                if (pos >= len) {
+                    len = in.read(buf);
+                    pos = 0;
+                    if (len <= 0) {
+                        return -1;
+                    }
+                }
+                return buf[pos++];
+            }
         }
 
         /**

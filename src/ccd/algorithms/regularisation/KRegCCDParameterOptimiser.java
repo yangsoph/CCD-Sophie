@@ -41,7 +41,9 @@ import java.util.List;
  *       derivative-based method that would wander on the flat ridge.</li>
  * </ul>
  * For each candidate {@code alpha}, {@code mu} is profiled out (best over the grid); Brent then
- * maximises that profiled objective over {@code alpha}.
+ * maximises that profiled objective over {@code alpha}. When {@link #FIXED_ALPHA} is set, the Brent
+ * search is skipped and only {@code mu} is profiled at that pinned {@code alpha} — a large speedup
+ * (one set of per-fold backbones instead of one per alpha evaluation).
  *
  * @author Claude (CCD-Sophie)
  */
@@ -62,14 +64,28 @@ public class KRegCCDParameterOptimiser {
     private static final double ALPHA_HI = 2.0;
     private static final double ALPHA_START = KRegCCD.DEFAULT_ALPHA;
 
+    /* Fixed backbone-smoothing alpha. The Yule50 sweep found the fitted alpha clustered tightly
+     * around 0.4 (per-size medians 0.46/0.40/0.36) and the held-out objective is shallow in alpha,
+     * so the Brent search buys little but costs a full backbone rebuild per alpha evaluation (up to
+     * MAX_ALPHA_EVALS x folds rebuilds). Pinning alpha = 0.4 and profiling only mu collapses that to
+     * one set of per-fold backbones -- the dominant speedup for the 100-rep re-run. Set to null to
+     * restore the Brent search over [ALPHA_LO, ALPHA_HI]. */
+    private static final Double FIXED_ALPHA = 0.4;
+
     /* mu grid: log-spaced from negligible escape up to the reliability ceiling. The upper bound is
      * KRegCCD.MU_RELIABLE_MAX, not larger: above it the depth-k reserve approximation breaks down
      * (the omitted tail grows ~mu^3), and because the held-out objective is scored with tail = 0
      * (NONE) that breakdown inflates the score ~mu^3 -- which would bias the search toward large
-     * mu. Searching beyond the ceiling is therefore both invalid and misleading. */
+     * mu. Searching beyond the ceiling is therefore both invalid and misleading.
+     *
+     * The lower bound is 1e-4 (was 1e-3): on large posterior samples the held-out optimum routinely
+     * sat on the old 1e-3 floor (once most clades are seen the data wants very little escape mass),
+     * so the floor was binding rather than interior. MU_GRID is widened from 41 to 61 to keep the
+     * per-decade grid density roughly constant over the now-wider range. A floor warning (below)
+     * flags fits that still pin at the lowered floor. */
     private static final double MU_LO = 1e-4;
     private static final double MU_HI = KRegCCD.MU_RELIABLE_MAX;
-    private static final int MU_GRID = 41;
+    private static final int MU_GRID = 61;
 
     private static final int MAX_ALPHA_EVALS = 60;
 
@@ -78,7 +94,11 @@ public class KRegCCDParameterOptimiser {
     }
 
     public static Params optimise(List<Tree> trees, int folds) {
-        return optimise(trees, folds, FoldAssignment.STRIDED);
+        // CONTIGUOUS (block) folds, not STRIDED: posterior trees are autocorrelated, so strided folds
+        // leave each held-out tree's near-neighbours in its own training fold, making the CV optimistic
+        // and selecting under-regularised (too-small alpha/mu) parameters. A contiguous held-out block
+        // is far less correlated with its training set, giving an honest held-out objective.
+        return optimise(trees, folds, FoldAssignment.CONTIGUOUS);
     }
 
     public static Params optimise(List<Tree> trees, int folds, FoldAssignment assignment) {
@@ -107,22 +127,28 @@ public class KRegCCDParameterOptimiser {
 
         double[] muGrid = logspace(MU_LO, MU_HI, MU_GRID);
 
-        UnivariateFunction profiled = alpha -> {
-            double[] best = bestMuLogProb(trainByFold, testByFold, alpha, muGrid);
-            System.out.println(String.format(
-                    "  testing alpha = %.5f -> best mu = %.5f, held-out logP = %.5f",
-                    alpha, best[0], best[1]));
-            return best[1];
-        };
+        double alphaStar;
+        if (FIXED_ALPHA != null) {
+            // alpha pinned (see FIXED_ALPHA): skip the Brent search and profile only mu.
+            alphaStar = FIXED_ALPHA;
+        } else {
+            UnivariateFunction profiled = alpha -> {
+                double[] best = bestMuLogProb(trainByFold, testByFold, alpha, muGrid);
+                System.out.println(String.format(
+                        "  testing alpha = %.5f -> best mu = %.5f, held-out logP = %.5f",
+                        alpha, best[0], best[1]));
+                return best[1];
+            };
 
-        BrentOptimizer optimiser = new BrentOptimizer(1e-4, 1e-4);
-        UnivariatePointValuePair sol = optimiser.optimize(
-                new MaxEval(MAX_ALPHA_EVALS),
-                new UnivariateObjectiveFunction(profiled),
-                GoalType.MAXIMIZE,
-                new SearchInterval(ALPHA_LO, ALPHA_HI, ALPHA_START));
+            BrentOptimizer optimiser = new BrentOptimizer(1e-4, 1e-4);
+            UnivariatePointValuePair sol = optimiser.optimize(
+                    new MaxEval(MAX_ALPHA_EVALS),
+                    new UnivariateObjectiveFunction(profiled),
+                    GoalType.MAXIMIZE,
+                    new SearchInterval(ALPHA_LO, ALPHA_HI, ALPHA_START));
+            alphaStar = sol.getPoint();
+        }
 
-        double alphaStar = sol.getPoint();
         double[] best = bestMuLogProb(trainByFold, testByFold, alphaStar, muGrid);
         System.out.println(String.format(
                 "KRegCCD optimised: alpha = %.5f, mu = %.5f, held-out logP = %.5f",
@@ -132,6 +158,11 @@ public class KRegCCDParameterOptimiser {
                     + "reliability ceiling mu = " + MU_HI + " (KRegCCD.MU_RELIABLE_MAX); the data "
                     + "wants more escape mass than the depth-k approximation can validly provide. "
                     + "Treat mu = " + MU_HI + " as a capped estimate, not an interior optimum.");
+        }
+        if (best[0] <= MU_LO * (1 + 1e-9)) {
+            System.err.println("WARNING: held-out probability is still increasing as mu decreases at "
+                    + "the search floor mu = " + MU_LO + "; the data wants even less escape mass than "
+                    + "this. Treat mu = " + MU_LO + " as a capped (non-interior) estimate.");
         }
         return new Params(alphaStar, best[0], best[1]);
     }
