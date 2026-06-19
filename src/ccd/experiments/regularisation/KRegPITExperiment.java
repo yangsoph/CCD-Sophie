@@ -7,6 +7,7 @@ import ccd.model.CCD0;
 import ccd.model.CCD1;
 import ccd.model.ITreeDistribution;
 import ccd.model.KRegCCD;
+import ccd.model.RegCCD;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
@@ -146,10 +147,12 @@ public class KRegPITExperiment {
                 return new CCD0(trainingTrees, 0);
             case "ccd1":
                 return new CCD1(trainingTrees, 0);
+            case "regccd":
+                return new RegCCD(trainingTrees, 0, KRegCCD.DEFAULT_ALPHA);
             case "kreg":
                 return KRegCCD.withOptimisedParameters(trainingTrees);
             default:
-                throw new IllegalArgumentException("Unknown ccdType '" + ccdType + "' (expected kreg, ccd1 or ccd0)");
+                throw new IllegalArgumentException("Unknown ccdType '" + ccdType + "' (expected kreg, regccd, ccd1 or ccd0)");
         }
     }
 

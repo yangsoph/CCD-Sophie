@@ -851,10 +851,20 @@ public class KRegCCD extends RegCCD {
      * @return model probability that a tree contains a novel clade
      */
     public double getNovelCladeProbability() {
-        return 1.0 - massNoNovelClade(getRootClade(), new HashMap<>());
+        return getNovelCladeProbability(mu);
     }
 
-    private double massNoNovelClade(Clade c, Map<Clade, Double> memo) {
+    /**
+     * Closed-form P(tree contains a novel clade) at an arbitrary escape probability {@code atMu},
+     * reusing this model's (mu-independent) alpha-smoothed backbone CCPs and reservability. This is the
+     * P(novel) analogue of {@link #getLogProbabilityOfTree(Tree, double)}: it lets a sweep evaluate many
+     * mu on one trained backbone without rebuilding. For {@code atMu == mu} it equals the no-arg form.
+     */
+    public double getNovelCladeProbability(double atMu) {
+        return 1.0 - massNoNovelClade(getRootClade(), new HashMap<>(), atMu);
+    }
+
+    private double massNoNovelClade(Clade c, Map<Clade, Double> memo, double atMu) {
         if (c.isLeaf()) {
             return 1.0;
         }
@@ -865,9 +875,9 @@ public class KRegCCD extends RegCCD {
         double sum = 0.0;
         for (CladePartition p : c.getPartitions()) {
             Clade[] ch = p.getChildClades();
-            sum += p.getCCP() * massNoNovelClade(ch[0], memo) * massNoNovelClade(ch[1], memo);
+            sum += p.getCCP() * massNoNovelClade(ch[0], memo, atMu) * massNoNovelClade(ch[1], memo, atMu);
         }
-        double m = (cheapReservable(c) ? (1.0 - mu) : 1.0) * sum;
+        double m = (cheapReservable(c) ? (1.0 - atMu) : 1.0) * sum;
         memo.put(c, m);
         return m;
     }
