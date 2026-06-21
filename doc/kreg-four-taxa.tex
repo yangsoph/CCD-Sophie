@@ -1,0 +1,143 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.1cm]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{xcolor}
+
+\newcommand{\blue}[1]{\textcolor{blue}{#1}}
+\newcommand{\cobs}{c_{\mathrm{obs}}}
+\newcommand{\cbal}{c_{\mathrm{bal}}}
+\newcommand{\eroot}{\varepsilon_{\mathrm{root}}}
+
+\title{KRegCCD: the 15 four-taxon tree probabilities, symbolically}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2.5em}
+
+\section*{Setup}
+
+Taxa $\{A,B,C,D\}$. Two trees observed, each once:
+\[
+T_1 = (((A,B),C),D), \qquad T_2 = (((D,C),B),A),
+\]
+so the observed non-trivial clades are $\{A,B\},\{A,B,C\}$ (from $T_1$) and
+$\{C,D\},\{B,C,D\}$ (from $T_2$). Clades never seen are the \blue{blue nodes}.
+KRegCCD is fitted with smoothing parameter $\alpha$ and per-clade escape
+probability $\mu$ (reserve depth $k=2$, \texttt{NovelMode.FLAT}). With four taxa
+there are exactly $(2\cdot4-3)!!=15$ rooted topologies, so this is the whole
+tree space.
+
+\section*{The three building blocks}
+
+The escape probability $\mu$ is a single global parameter: every reservable
+clade $C$ reserves the \emph{same} total mass $\mu$ for its blue resolutions. The
+escape root $\varepsilon(C)$, by contrast, is solved \emph{per clade} from that
+clade's own reserve equation
+\[
+R(C) \;=\; \sum_{j\ge 1} N_j(C)\,\varepsilon(C)^{\,j} \;=\; \mu ,
+\]
+where $N_j(C)$ counts the depth-$j$ novel resolutions of $C$. So $\varepsilon(C)$
+varies from clade to clade (the root and the 3-taxon clades below get different
+roots), while $\mu$ does not. The two distinct values $\eroot$ and
+$\varepsilon_3$ used in the table are $\varepsilon(C)$ at the root and at a
+3-taxon clade respectively.
+
+\paragraph{Backbone CCPs (from $\alpha$).}
+Additive-$\alpha$ smoothing at the root clade $\{A,B,C,D\}$, which was seen twice
+and carries three candidate splits (the two observed splits plus the
+split-expanded balanced split $\{A,B\}|\{C,D\}$), gives
+\[
+\cobs \;=\; \frac{1+\alpha}{2+3\alpha}
+\quad(\text{each observed split}),
+\qquad
+\cbal \;=\; \frac{\alpha}{2+3\alpha}
+\quad(\text{balanced split}),
+\]
+with the key identity $\;2\cobs+\cbal = 1$. The two interior 3-taxon clades each
+carry a single split, so their CCP is $1$.
+
+\paragraph{Root escape root $\eroot$.}
+The root reserves total mass $\mu$ for its blue resolutions. In FLAT mode the
+reserve sums tree counts: $M_1=2$ trees carry one novel clade and $M_2=6$ carry
+two, so the root's escape root $\eroot$ solves
+\[
+2\eroot + 6\eroot^2 = \mu
+\qquad\Longrightarrow\qquad
+\eroot \;=\; \frac{\sqrt{1+6\mu}-1}{6}.
+\]
+
+\paragraph{Interior 3-clade escape root $\varepsilon_3\equiv\varepsilon(\text{3-clade})$.}
+A 3-taxon observed clade has two blue resolutions and no deeper order, so its
+escape root solves $2\varepsilon_3=\mu$, i.e. $\varepsilon_3=\mu/2$. Same $\mu$ as
+the root, but a different root because the $N_j$ counts differ.
+
+\section*{The 15 probabilities}
+
+Each tree is a product over its clades: a reservable observed clade that keeps an
+observed split contributes $(1-\mu)\,\mathrm{CCP}$; a clade that escapes
+contributes $\varepsilon(C)^{\,\#\text{novel}}$ for its blue region; cherries
+contribute $1$.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{c l l c r}
+\toprule
+ & \textbf{Newick} & \textbf{Category} & \textbf{Symbolic} & \textbf{Value} \\
+\midrule
+$T_1$ & $(((A,B),C),D)$ & observed            & $(1-\mu)^2\,\cobs$ & $0.39484375$ \\
+$T_2$ & $(((D,C),B),A)$ & observed            & $(1-\mu)^2\,\cobs$ & $0.39484375$ \\
+$T_3$ & $((A,B),(C,D))$ & $\alpha$-expansion  & $(1-\mu)\,\cbal$   & $0.11875000$ \\
+\midrule
+\multicolumn{5}{l}{\emph{One blue node: a 3-taxon clade over an observed cherry $(\#\text{novel}=1$, root escapes$)$}}\\
+4 & $(((A,B),D),C)$ & blue \blue{$\{A,B,D\}$} & $\eroot$ & $0.02336257$ \\
+5 & $(((C,D),A),B)$ & blue \blue{$\{A,C,D\}$} & $\eroot$ & $0.02336257$ \\
+\midrule
+\multicolumn{5}{l}{\emph{One blue node: a novel cherry under an observed triple $($root stays observed, 3-clade escapes$)$}}\\
+6 & $(((A,C),B),D)$ & blue \blue{$\{A,C\}$} & $(1-\mu)\,\cobs\,\dfrac{\mu}{2}$ & $0.01039063$ \\
+7 & $(((B,C),A),D)$ & blue \blue{$\{B,C\}$} & $(1-\mu)\,\cobs\,\dfrac{\mu}{2}$ & $0.01039063$ \\
+8 & $(((B,C),D),A)$ & blue \blue{$\{B,C\}$} & $(1-\mu)\,\cobs\,\dfrac{\mu}{2}$ & $0.01039063$ \\
+9 & $(((B,D),C),A)$ & blue \blue{$\{B,D\}$} & $(1-\mu)\,\cobs\,\dfrac{\mu}{2}$ & $0.01039063$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Two blue nodes: fully novel $(\#\text{novel}=2$, root escapes$)$}}\\
+10 & $(((A,D),B),C)$ & blue \blue{$\{A,D\},\{A,B,D\}$} & $\eroot^2$ & $0.00054581$ \\
+11 & $(((B,D),A),C)$ & blue \blue{$\{B,D\},\{A,B,D\}$} & $\eroot^2$ & $0.00054581$ \\
+12 & $(((A,C),D),B)$ & blue \blue{$\{A,C\},\{A,C,D\}$} & $\eroot^2$ & $0.00054581$ \\
+13 & $(((A,D),C),B)$ & blue \blue{$\{A,D\},\{A,C,D\}$} & $\eroot^2$ & $0.00054581$ \\
+14 & $((A,C),(B,D))$ & blue \blue{$\{A,C\},\{B,D\}$}   & $\eroot^2$ & $0.00054581$ \\
+15 & $((A,D),(B,C))$ & blue \blue{$\{A,D\},\{B,C\}$}   & $\eroot^2$ & $0.00054581$ \\
+\midrule
+   &                 & \textbf{sum}                   & $1$ & $1.00000000$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Values shown at the fitted $\alpha=0.40,\ \mu=0.05$, for which
+$\cobs=\tfrac{7}{16}=0.4375$, $\cbal=\tfrac18=0.125$, and
+$\eroot=\tfrac{\sqrt{1.3}-1}{6}=0.0233625708\ldots$
+
+\section*{Why it sums to exactly 1}
+
+Group the fifteen terms by the three building blocks:
+\begin{align*}
+\sum_{\text{all }15}
+&= \underbrace{2(1-\mu)^2\cobs}_{T_1,T_2}
+ + \underbrace{(1-\mu)\cbal}_{T_3}
+ + \underbrace{4(1-\mu)\cobs\tfrac{\mu}{2}}_{\text{trees }6\text{--}9}
+ + \underbrace{2\eroot + 6\eroot^2}_{\text{trees }4,5,10\text{--}15} \\[2pt]
+&= (1-\mu)\,\cobs\big[\,2(1-\mu)+2\mu\,\big] + (1-\mu)\cbal + \big(2\eroot+6\eroot^2\big)\\[2pt]
+&= (1-\mu)\big(2\cobs+\cbal\big) + \mu
+ \;=\; (1-\mu)\cdot 1 + \mu \;=\; 1.
+\end{align*}
+The escaped mass $2\eroot+6\eroot^2$ is, by definition of $\eroot$,
+exactly the reserve $\mu$; and the backbone CCPs satisfy $2\cobs+\cbal=1$. So the
+distribution is normalised for any $\alpha\in(0,\infty)$ and $\mu\in(0,1)$, with
+no leftover reserve. (This holds under \texttt{TailMode.NONE}. The optimiser's
+default \texttt{TailMode.BOUND} subtracts a strict upper bound on the
+deeper-than-$k$ reserve tail, which is empty here, so it sub-normalises to
+$0.99975$; on a finite enumerated space \texttt{NONE} is exact.)
+
+\end{document}
