@@ -5,11 +5,13 @@ Reads one or more tidy TSVs written by
 ccd.experiments.regularisation.KRegPITExperiment (columns: model, sampleSize,
 binLeft, binRight, count, expected, chiSq, chiP, ksD, ksP, nScored, nZeroed) and
 lays them out as a grid of histograms: one row per sample size, one column per
-model (KRegCCD, CCD1, CCD0). A calibrated, full-support model gives a flat PIT
+model (CCD1, regCCD, KRegCCD). A calibrated, full-support model gives a flat PIT
 (bars on the dashed uniform line, inside the shaded 95% band); a U-shape means the
 model is over-confident, an n-shape under-confident, a slope a systematic bias.
-Each panel is annotated with the chi-square and KS uniformity p-values, and (for
-non-full-support models) the fraction of test trees excluded because q(T)=0.
+Each panel leads with its L1 calibration error (an effect size, robust to the pooled
+sample size), and (for non-full-support models) the fraction of test trees excluded
+because q(T)=0. The chi-square/KS p-values are not shown: pooling makes the sample
+size huge, so they reject any infinitesimal deviation and are uninformative.
 
 Usage: plot_pit.py <out.pdf> <hist1.tsv> [hist2.tsv ...] [--title="..."]
 """
@@ -20,8 +22,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # preferred column order and display names
-MODEL_ORDER = ["kreg", "ccd1", "ccd0"]
-MODEL_LABEL = {"kreg": "KRegCCD", "ccd1": "CCD1", "ccd0": "CCD0"}
+MODEL_ORDER = ["ccd1", "regccd", "kreg", "ccd0"]
+MODEL_LABEL = {"kreg": "KRegCCD", "regccd": "regCCD", "ccd1": "CCD1", "ccd0": "CCD0"}
 
 
 def main():
@@ -30,8 +32,11 @@ def main():
     # cap the shared y-axis so the near-uniform panels stay readable; grossly miscalibrated
     # bars (e.g. CCD0's u->1 spike) clip and are labelled with their true height
     ycap = float(next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--ymax=")), 3.0))
+    # optional comma-separated subset/order of models to show, e.g. --models=kreg,ccd1
+    only = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--models=")), None)
+    only = [m.strip() for m in only.split(",")] if only else None
     if len(args) < 2:
-        sys.exit('usage: plot_pit.py <out.pdf> <hist1.tsv> [hist2.tsv ...] [--title="..."]')
+        sys.exit('usage: plot_pit.py <out.pdf> <hist1.tsv> [hist2.tsv ...] [--title="..."] [--models=kreg,ccd1]')
     out, paths = args[0], args[1:]
 
     rows = np.concatenate([
@@ -39,8 +44,11 @@ def main():
         for p in paths
     ])
 
-    models = [m for m in MODEL_ORDER if m in rows["model"]]
-    models += [m for m in np.unique(rows["model"]) if m not in models]
+    if only is not None:
+        models = [m for m in only if m in rows["model"]]
+    else:
+        models = [m for m in MODEL_ORDER if m in rows["model"]]
+        models += [m for m in np.unique(rows["model"]) if m not in models]
     sizes = sorted(np.unique(rows["sampleSize"]))
     nrows, ncols = len(sizes), len(models)
 
@@ -77,19 +85,16 @@ def main():
                 ax.text(left[bi] + width[bi] / 2, ycap * 0.97, f"{density.max():.0f}",
                         ha="center", va="top", fontsize=6, color="#b00", zorder=3)
 
-            l1, ksp, nzero = sel["pitL1"][0], sel["ksP"][0], int(sel["nZeroed"][0])
+            l1, nzero = sel["pitL1"][0], int(sel["nZeroed"][0])
             excl = 100.0 * nzero / (m + nzero)
             # Two independent failure axes, coloured separately:
-            #   L1   = shape calibration (sample-size-robust headline; KS p shown small because
-            #          pooling inflates its power so it rejects trivially)
+            #   L1   = shape calibration (sample-size-robust headline effect size)
             #   excl = coverage (fraction of test trees the model assigns zero probability)
             ax.text(0.04, 0.96, f"L1 = {l1:.3f}", transform=ax.transAxes, va="top", ha="left",
-                    fontsize=9, fontweight="bold", color=("#b00" if l1 > 0.15 else "#060"))
-            ax.text(0.04, 0.81, f"KS p={ksp:.1g}", transform=ax.transAxes, va="top", ha="left",
-                    fontsize=7, color="0.4")
+                    fontsize=10, fontweight="bold", color=("#b00" if l1 > 0.15 else "#060"))
             if nzero > 0:
-                ax.text(0.04, 0.71, f"excl. {excl:.0f}%", transform=ax.transAxes, va="top", ha="left",
-                        fontsize=7.5, fontweight="bold", color=("#b00" if excl > 1.0 else "#060"))
+                ax.text(0.04, 0.80, f"excl. {excl:.0f}%", transform=ax.transAxes, va="top", ha="left",
+                        fontsize=8.5, fontweight="bold", color=("#b00" if excl > 1.0 else "#060"))
 
             if ri == 0:
                 ax.set_title(MODEL_LABEL.get(model, model), fontsize=11)
