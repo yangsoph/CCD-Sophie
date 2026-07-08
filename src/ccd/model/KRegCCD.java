@@ -252,8 +252,7 @@ public class KRegCCD extends RegCCD {
      *                 affects accuracy.
      * @param tailMode how to correct for the omitted reserve tail (see {@link TailMode})
      */
-    public KRegCCD(List<Tree> trees, double burnin, double mu, double alpha, int k,
-                   TailMode tailMode) {
+    public KRegCCD(List<Tree> trees, double burnin, double mu, double alpha, int k, TailMode tailMode) {
         this(trees, burnin, mu, alpha, k, tailMode, DEFAULT_NOVEL_MODE);
     }
 

@@ -184,4 +184,21 @@ public class CCD0Test {
 
         assertEquals(1.0, ccpSum, 1e-9);
     }
+
+    @Test
+    public void prob() {
+        List<Tree> trees = new ArrayList<>();
+        trees.add(parse("(((A:1,B:1):1,C:1):1,D:1):0;"));
+        trees.add(parse("(((A:1,B:1):1,C:1):1,D:1):0;"));
+        trees.add(parse("(((D:1,C:1):1,B:1):1,A:1):0;"));
+
+        CCD0 ccd = new CCD0(trees, 0.0);
+
+        for (Clade clade : ccd.getClades()) {
+            System.out.println(clade);
+            for (CladePartition p : clade.getPartitions()) {
+                System.out.println(p);
+            }
+        }
+    }
 }
