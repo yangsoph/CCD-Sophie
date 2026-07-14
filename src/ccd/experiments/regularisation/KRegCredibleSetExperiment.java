@@ -20,7 +20,7 @@ public class KRegCredibleSetExperiment {
     public static String ccdType; // ccd0, ccd1, kreg
     public static int startRep; // the starting index of reps, used in the case when nesi killed job half way
     public static int endRep; // the ending index of reps, used in the case when nesi killed job half way
-    public static int precision = 100; // the number of thresholds used to determine credible levels in credible set.
+    public static int precision = 50; // the number of thresholds used to determine credible levels in credible set.
 
     public static void main(String[] args) throws IOException {
 
@@ -31,13 +31,16 @@ public class KRegCredibleSetExperiment {
             startRep = Integer.parseInt(args[3]);
             endRep = Integer.parseInt(args[4]);
         } else { // default local test
+            dataName = "Yule50";
             subsampleSize = 300;
-            ccdType = "ccd0";
-            startRep = 0;
+            ccdType = "ccd1";
+            startRep = 1;
+            endRep = 1;
         }
 
         // output file
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/credSet_fixedAlpha_output/credibleSet_" + dataName + "_sub" + subsampleSize + "_" + ccdType + "_" + startRep + ".csv";
+        // String outputPathName = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/credSet_fixedAlpha_output/credibleSet_" + dataName + "_sub" + subsampleSize + "_" + ccdType + "_" + startRep + ".csv";
+        String outputPathName = "/Users/zyan598/Desktop/local_test/credibleSetCheck.csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -47,7 +50,7 @@ public class KRegCredibleSetExperiment {
         StringBuilder sb = new StringBuilder();
         sb.append("rep").append(separator);
         for (int j = 1; j <= precision; j++) {
-            double percentage = j / 100.0;
+            double percentage = j / (double) precision;
             sb.append("ccdCredibleSet" + percentage);
             if (j != precision) sb.append(separator);
         }
@@ -56,9 +59,14 @@ public class KRegCredibleSetExperiment {
 
         for (int rep = startRep; rep <= endRep; rep++) {
 
-            String trainingTreesDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/run1/"
+            // String trainingTreesDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/run1/"
+            //         + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
+            // String testingTreesDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/run2/"
+            //         + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
+
+            String trainingTreesDir = "/Volumes/DYNABOOK/wcss_full/" + dataName + "/rep" + rep + "/run1/"
                     + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
-            String testingTreesDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/run2/"
+            String testingTreesDir = "/Volumes/DYNABOOK/wcss_full/" + dataName + "/rep" + rep + "/run2/"
                     + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
 
             File trainingTreesFile = new File(trainingTreesDir);
@@ -103,7 +111,8 @@ public class KRegCredibleSetExperiment {
         for (Tree tree : treeList) {
             double credibleLevel = probBasedCredSetComputer.getCredibleLevel(tree);
             if (credibleLevel < 0) continue; // skip trees with 0 probability: getCredibleLevel returns -1 if prob == 0
-            int index = (int) Math.floor(credibleLevel * precision) - 1;
+            // int index = (int) Math.floor(credibleLevel * precision) - 1;
+            int index = (int) Math.ceil(credibleLevel * precision) - 1;
             for (int i = index; i < precision; i++) {
                 countsPerCredibleLevel[i]++;
             }

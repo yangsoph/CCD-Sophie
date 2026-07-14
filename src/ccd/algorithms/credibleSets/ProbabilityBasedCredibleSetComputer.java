@@ -145,6 +145,34 @@ public class ProbabilityBasedCredibleSetComputer implements ICredibleSet {
             }
 
             sampledLogProbabilities = down;
+
+            // Debug: print thresholds around 28%-30%
+            // System.out.println("numSamples = " + numSamples);
+            // System.out.println("precision = " + precision);
+            // System.out.println("sampledLogProbabilities.length = " + sampledLogProbabilities.length);
+            //
+            // for (int i = 25; i <= 30 && i < sampledLogProbabilities.length; i++) {
+            //     System.out.printf("%2d : %.15f%n", i, sampledLogProbabilities[i]);
+            // }
+            //
+            // System.out.println("\nChecking adjacent thresholds:");
+            //
+            // for (int i = 25; i < 30 && i + 1 < sampledLogProbabilities.length; i++) {
+            //     System.out.printf(
+            //             "%2d -> %2d : %.15f  %.15f   equal=%b%n",
+            //             i, i + 1,
+            //             sampledLogProbabilities[i],
+            //             sampledLogProbabilities[i + 1],
+            //             sampledLogProbabilities[i] == sampledLogProbabilities[i + 1]
+            //     );
+            // }
+            //
+            // int idx28 = (int) (0.28 * sampledLogProbabilities.length);
+            // int idx29 = (int) (0.29 * sampledLogProbabilities.length);
+            //
+            // System.out.println("0.28 threshold = " + sampledLogProbabilities[idx28]);
+            // System.out.println("0.29 threshold = " + sampledLogProbabilities[idx29]);
+            // System.out.println("Equal? " + (sampledLogProbabilities[idx28] == sampledLogProbabilities[idx29]));
         }
     }
 
