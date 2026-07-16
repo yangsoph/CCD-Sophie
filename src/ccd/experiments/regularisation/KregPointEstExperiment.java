@@ -32,12 +32,15 @@ public class KregPointEstExperiment {
             startRep = Integer.parseInt(args[2]);
             endRep = Integer.parseInt(args[3]);
         } else { // default local test
-            subsampleSize = 300;
-            startRep = 0;
+            dataName = "Yule400";
+            subsampleSize = 1000;
+            startRep = 18;
+            endRep = 18;
         }
 
         // output file
-        String outputPathName = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/pointEst/output_" + dataName + "_sub" + subsampleSize + "_pointEst_" + startRep + ".csv";
+        // String outputPathName = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/pointEst/output_" + dataName + "_sub" + subsampleSize + "_pointEst_" + startRep + ".csv";
+        String outputPathName = "/Users/zyan598/Desktop/local_test/output_" + dataName + "_sub" + subsampleSize + "_pointEst_" + startRep + ".csv";
         File outputFile = new File(outputPathName);
         FileWriter fileWriter = new FileWriter(outputFile);
         PrintWriter writer = new PrintWriter(fileWriter);
@@ -52,10 +55,16 @@ public class KregPointEstExperiment {
 
         for (int rep = startRep; rep <= endRep; rep++) {
 
-            String treesDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/run1/"
+            // String treesDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/run1/"
+            //         + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
+            // String trueTreeDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/"
+            //         + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + "_true_phi.trees";
+            
+            String treesDir = "/Volumes/DYNABOOK/wcss_full/" + dataName + "/rep" + rep + "/run1/"
                     + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
-            String trueTreeDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/"
+            String trueTreeDir = "/Volumes/DYNABOOK/wcss_full/" + dataName + "/rep" + rep + "/"
                     + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + "_true_phi.trees";
+
             File treesFile = new File(treesDir);
             List<Tree> treesList = LoadOrStoreTrees.loadTrees(treesFile, 0, subsampleSize);
             TreeAnnotator.MemoryFriendlyTreeSet trueTreeSet = new TreeAnnotator().new MemoryFriendlyTreeSet(trueTreeDir, 0);

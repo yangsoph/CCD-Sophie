@@ -57,20 +57,20 @@ public class KRegCredibleSetExperiment {
         writer.println(sb.toString());
         writer.flush();
 
-        PrintWriter writerOptiMu = null;
-        if (ccdType.equals("kreg")) {
-            // output file for optimal mu
-            String outputPathNameOptiMu = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/optimal_mu/optimal_mu_" + dataName + "_sub" + subsampleSize + "_" + ccdType + "_" + startRep + ".csv";
-            File outputFileOptiMu = new File(outputPathNameOptiMu);
-            FileWriter fileWriterOptiMu = new FileWriter(outputFileOptiMu);
-            writerOptiMu = new PrintWriter(fileWriterOptiMu);
-            // header for optimal mu
-            sb = new StringBuilder();
-            sb.append("rep").append(separator);
-            sb.append("optimisedlMu");
-            writerOptiMu.println(sb.toString());
-            writerOptiMu.flush();
-        }
+        // output file and header for optimal mu
+        // PrintWriter writerOptiMu = null;
+        // if (ccdType.equals("kreg")) {
+        //     String outputPathNameOptiMu = "/nesi/nobackup/uoa04397/sophie/smoothing/KReg/optimal_mu/optimal_mu_" + dataName + "_sub" + subsampleSize + "_" + ccdType + "_" + startRep + ".csv";
+        //     File outputFileOptiMu = new File(outputPathNameOptiMu);
+        //     FileWriter fileWriterOptiMu = new FileWriter(outputFileOptiMu);
+        //     writerOptiMu = new PrintWriter(fileWriterOptiMu);
+        //
+        //     sb = new StringBuilder();
+        //     sb.append("rep").append(separator);
+        //     sb.append("optimisedlMu");
+        //     writerOptiMu.println(sb.toString());
+        //     writerOptiMu.flush();
+        // }
 
         for (int rep = startRep; rep <= endRep; rep++) {
 
@@ -100,12 +100,12 @@ public class KRegCredibleSetExperiment {
                 probBasedCredSetComputer = new ProbabilityBasedCredibleSetComputer(ccd1);
             } else {
                 KRegCCD kreg = KRegCCD.withOptimisedMu(trainingTrees);
-                double optiMu = kreg.getMu();
-                sb = new StringBuilder();
-                sb.append(rep).append(separator);
-                sb.append(optiMu);
-                writerOptiMu.println(sb.toString());
-                writerOptiMu.flush();
+                // double optiMu = kreg.getMu();
+                // sb = new StringBuilder();
+                // sb.append(rep).append(separator);
+                // sb.append(optiMu);
+                // writerOptiMu.println(sb.toString());
+                // writerOptiMu.flush();
                 probBasedCredSetComputer = new ProbabilityBasedCredibleSetComputer(kreg);
             }
             int[] countsPerCredibleLevel = getCountsPerCredibleLevel(probBasedCredSetComputer, testingTrees);
