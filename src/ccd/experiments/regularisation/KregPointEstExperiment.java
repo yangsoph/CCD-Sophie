@@ -33,7 +33,7 @@ public class KregPointEstExperiment {
             endRep = Integer.parseInt(args[3]);
         } else { // default local test
             dataName = "Yule400";
-            subsampleSize = 1000;
+            subsampleSize = 3000;
             startRep = 18;
             endRep = 18;
         }
@@ -59,7 +59,7 @@ public class KregPointEstExperiment {
             //         + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
             // String trueTreeDir = "/nesi/nobackup/uoa04397/sophie/wcss_full/" + dataName + "/rep" + rep + "/"
             //         + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + "_true_phi.trees";
-            
+
             String treesDir = "/Volumes/DYNABOOK/wcss_full/" + dataName + "/rep" + rep + "/run1/"
                     + dataName.substring(0, 4).toLowerCase() + "-n" + dataName.substring(4, dataName.length()) + "-" + rep + ".trees";
             String trueTreeDir = "/Volumes/DYNABOOK/wcss_full/" + dataName + "/rep" + rep + "/"

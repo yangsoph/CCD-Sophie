@@ -12,6 +12,10 @@ import java.util.List;
 
 public class ModelComparisonTest {
 
+    private static final double MU = KRegCCD.DEFAULT_MU;
+    private static final double ALPHA = KRegCCD.DEFAULT_ALPHA;
+    private static final int K = KRegCCD.DEFAULT_RESERVE_DEPTH;
+
     public static void main(String[] args) throws IOException {
 
         // String filePath = "/Users/zyan598/Downloads/realData/output.txt";
@@ -43,8 +47,10 @@ public class ModelComparisonTest {
         //     }
         // }
 
-        String credSetDataPath = "/Volumes/DYNABOOK/phyloData/mays_2015_multilocus_avian/mays_2015_codonpartioned.trees";
-        String pointEstDataPath = "/Volumes/DYNABOOK/phyloData/mays_2015_multilocus_avian/mays_2015_genepartioned.trees";
+        // String pointEstDataPath = "/nesi/nobackup/uoa04397/sophie/real_data/kolipakam_2018_Dravidian_language/kolipakam_2018_ctmc-est-ucln.trees";
+        String pointEstDataPath = "/Volumes/DYNABOOK/phyloData/kolipakam_2018_Dravidian_language/kolipakam_2018_ctmc-est-ucln.trees";
+        // String credSetDataPath = "/nesi/nobackup/uoa04397/sophie/real_data/stervander_2019_origin_flightless_bird/stervander_2019_2Nc3Mt_1tree.trees";
+        String credSetDataPath = "/Volumes/DYNABOOK/phyloData/kolipakam_2018_Dravidian_language/kolipakam_2018_ctmc-est-strict.trees";
         checkMAPTreeInCredSet(pointEstDataPath, credSetDataPath);
     }
 
@@ -58,10 +64,14 @@ public class ModelComparisonTest {
 
         // MAP tree
         KRegCCD kreg = KRegCCD.withOptimisedMu(pointEstTreeList);
+        // double optiMu = 0.017747683;
+        // KRegCCD kreg = new KRegCCD(pointEstTreeList, 0, MU, ALPHA, K);
         WrappedBeastTree mapTree = new WrappedBeastTree(kreg.getMAPTree());
 
         // Cred Set
+        // double optiMuCredSet = 0.002016054;
         KRegCCD kregCredSet = KRegCCD.withOptimisedMu(credSetreeList);
+        // KRegCCD kregCredSet = new KRegCCD(credSetreeList, 0, MU, ALPHA, K);
         ProbabilityBasedCredibleSetComputer credSetComputer = new ProbabilityBasedCredibleSetComputer(kregCredSet);
 
         // check if the MAP tree is in the credible set
