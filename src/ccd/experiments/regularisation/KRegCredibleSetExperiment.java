@@ -131,8 +131,10 @@ public class KRegCredibleSetExperiment {
         for (Tree tree : treeList) {
             double credibleLevel = probBasedCredSetComputer.getCredibleLevel(tree);
             if (credibleLevel < 0) continue; // skip trees with 0 probability: getCredibleLevel returns -1 if prob == 0
-            int index = (int) Math.floor(credibleLevel * precision) - 1;
-            // int index = (int) Math.ceil(credibleLevel * precision) - 1;
+            // Use round, not floor: getCredibleLevel returns k/precision as a double, and values such
+            // as 0.29/0.57/0.58 are stored a hair below k/100, so floor(credibleLevel * precision)
+            // drops to k-1 and mis-bins those trees, producing duplicate cumulative bins.
+            int index = (int) Math.round(credibleLevel * precision) - 1;
             for (int i = index; i < precision; i++) {
                 countsPerCredibleLevel[i]++;
             }
